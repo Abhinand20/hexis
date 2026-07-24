@@ -9,9 +9,9 @@ export default function IndexScreen() {
     return null;
   }
 
-  // `useActiveCycle` always returns `null` until Task 4 adds real persistence.
-  // Once the active-cycle landing route exists (Task 7), branch here to
-  // `/cycles/${cycle.id}` when `cycle` is set.
-  void cycle;
+  if (cycle) {
+    return <Redirect href={{ pathname: "/cycles/[cycleId]", params: { cycleId: cycle.id } }} />;
+  }
+
   return <Redirect href="/cycles/new" />;
 }

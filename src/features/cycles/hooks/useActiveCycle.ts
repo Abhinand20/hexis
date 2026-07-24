@@ -1,3 +1,7 @@
+import { useEffect, useState } from "react";
+
+import { useDatabase } from "../../../db/DatabaseProvider";
+import { createCycleRepository } from "../data/cycleRepository";
 import type { Cycle } from "../domain/types";
 
 export type ActiveCycleState = {
@@ -5,12 +9,36 @@ export type ActiveCycleState = {
   isLoading: boolean;
 };
 
-/**
- * Temporary stub: there is no persistence layer yet (see implementation-plan.md
- * Task 4), so no cycle can exist. Replace this body with a `CycleRepository
- * .getActiveCycle()` read once the repository lands; the return shape should
- * not need to change.
- */
 export function useActiveCycle(): ActiveCycleState {
-  return { cycle: null, isLoading: false };
+  const { db, isLoading: isDatabaseLoading } = useDatabase();
+  const [state, setState] = useState<ActiveCycleState>({
+    cycle: null,
+    isLoading: true,
+  });
+
+  useEffect(() => {
+    if (!db) {
+      return;
+    }
+
+    let cancelled = false;
+
+    createCycleRepository(db)
+      .getActiveCycle()
+      .then((cycle) => {
+        if (!cancelled) {
+          setState({ cycle, isLoading: false });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [db]);
+
+  if (isDatabaseLoading) {
+    return { cycle: null, isLoading: true };
+  }
+
+  return state;
 }
