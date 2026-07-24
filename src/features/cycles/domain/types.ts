@@ -11,3 +11,40 @@ export type Cycle = {
   status: CycleStatus;
   createdAt: string;
 };
+
+export type GoalCadence = "daily" | "weekly";
+
+export type CycleGoal = {
+  id: string;
+  cycleId: string;
+  name: string;
+  cadence: GoalCadence;
+  weeklyTargetCount: number;
+  expectedDurationMinutes: number | null;
+  createdAt: string;
+};
+
+export type GoalRevision = {
+  id: string;
+  cycleGoalId: string;
+  effectiveDate: string;
+  name: string;
+  cadence: GoalCadence;
+  weeklyTargetCount: number;
+  expectedDurationMinutes: number | null;
+};
+
+export type SessionLog = {
+  id: string;
+  cycleGoalId: string;
+  localDate: string;
+  durationMinutes: number | null;
+  createdAt: string;
+};
+
+export type GoalConfiguration = {
+  name: string;
+  cadence: GoalCadence;
+  weeklyTargetCount: number;
+  expectedDurationMinutes: number | null;
+};
