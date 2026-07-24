@@ -19,7 +19,7 @@ export type GoalEditorValue = {
 };
 
 export type GoalEditorProps = {
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "editingActiveGoal";
   initialValue: GoalEditorValue;
   onSave: (value: GoalEditorValue) => void;
   onCancel: () => void;
@@ -95,6 +95,12 @@ export function GoalEditor({
           <Text style={styles.title}>
             {mode === "create" ? "Add practice" : "Edit practice"}
           </Text>
+
+          {mode === "editingActiveGoal" ? (
+            <Text style={styles.helper}>
+              Applies from today; earlier logs are unchanged.
+            </Text>
+          ) : null}
 
           <Text style={styles.label}>Practice name</Text>
           <TextInput
@@ -181,7 +187,9 @@ export function GoalEditor({
               onPress={handleSave}
               style={styles.primaryButton}
             >
-              <Text style={styles.primaryButtonText}>Save</Text>
+              <Text style={styles.primaryButtonText}>
+                {mode === "editingActiveGoal" ? "Save updates" : "Save"}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -209,6 +217,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     marginBottom: spacing.sm,
+  },
+  helper: {
+    color: colors.mutedInk,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: spacing.xs,
   },
   label: {
     color: colors.mutedInk,
