@@ -1,23 +1,17 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Redirect } from "expo-router";
+
+import { useActiveCycle } from "../src/features/cycles/hooks/useActiveCycle";
 
 export default function IndexScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Hexis ready</Text>
-    </View>
-  );
-}
+  const { cycle, isLoading } = useActiveCycle();
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
-    backgroundColor: "#F7F5F0",
-    flex: 1,
-    justifyContent: "center",
-  },
-  title: {
-    color: "#1B1B19",
-    fontSize: 24,
-    fontWeight: "600",
-  },
-});
+  if (isLoading) {
+    return null;
+  }
+
+  // `useActiveCycle` always returns `null` until Task 4 adds real persistence.
+  // Once the active-cycle landing route exists (Task 7), branch here to
+  // `/cycles/${cycle.id}` when `cycle` is set.
+  void cycle;
+  return <Redirect href="/cycles/new" />;
+}
