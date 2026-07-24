@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Hexis",
+    "slug": "hexis",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "hexis",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
