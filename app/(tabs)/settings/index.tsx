@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useDatabase } from "../../../src/db/DatabaseProvider";
@@ -10,6 +20,13 @@ import { todayLocalDate } from "../../../src/features/cycles/domain/date";
 import type { CycleGoal } from "../../../src/features/cycles/domain/types";
 import { useActiveCycle } from "../../../src/features/cycles/hooks/useActiveCycle";
 import { createGoalRepository } from "../../../src/features/goals/data/goalRepository";
+import {
+  DEFAULT_REMINDER,
+  loadReminderSettings,
+  saveReminderSettings,
+  setDailyReminder,
+  type DailyReminder,
+} from "../../../src/features/reminders/reminderService";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -17,6 +34,8 @@ export default function SettingsScreen() {
   const { db, resetDatabase } = useDatabase();
   const { cycle, isLoading } = useActiveCycle();
   const [goals, setGoals] = useState<CycleGoal[]>([]);
+  const [reminder, setReminder] = useState<DailyReminder>(DEFAULT_REMINDER);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   useEffect(() => {
     if (!db || !cycle) {
@@ -39,6 +58,55 @@ export default function SettingsScreen() {
       cancelled = true;
     };
   }, [db, cycle]);
+
+  useEffect(() => {
+    if (!db) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function load() {
+      const loaded = await loadReminderSettings(db!);
+      if (!cancelled) {
+        setReminder(loaded);
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [db]);
+
+  async function handleReminderToggle(nextValue: boolean) {
+    if (!db) {
+      return;
+    }
+
+    const nextInput: DailyReminder = { ...reminder, enabled: nextValue };
+    const result = await setDailyReminder(nextInput);
+    await saveReminderSettings(db, result);
+    setReminder(result);
+    setPermissionDenied(nextValue === true && result.enabled === false);
+  }
+
+  async function handleReminderTimeChange(
+    _event: unknown,
+    selectedDate?: Date,
+  ) {
+    if (!db || !selectedDate) {
+      return;
+    }
+
+    const hour = selectedDate.getHours();
+    const minute = selectedDate.getMinutes();
+    const nextInput: DailyReminder = { ...reminder, hour, minute };
+    const result = await setDailyReminder(nextInput);
+    await saveReminderSettings(db, result);
+    setReminder(result);
+  }
 
   function confirmEndCycleEarly() {
     if (!cycle || !db) {
@@ -113,8 +181,36 @@ export default function SettingsScreen() {
       <Text style={[styles.sectionLabel, styles.sectionSpacing]}>Reminder</Text>
       <View style={styles.row}>
         <Text style={styles.rowLabel}>Daily reminder</Text>
-        <Text style={styles.rowCaption}>Coming soon</Text>
+        <Switch
+          accessibilityLabel="Daily reminder"
+          value={reminder.enabled}
+          onValueChange={(nextValue) => {
+            void handleReminderToggle(nextValue);
+          }}
+        />
       </View>
+      {permissionDenied ? (
+        <View style={styles.permissionDenied}>
+          <Text style={styles.rowCaption}>Notifications are off in Settings.</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              void Linking.openSettings();
+            }}
+          >
+            <Text style={styles.openSettingsLabel}>Open Settings</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {reminder.enabled ? (
+        <View style={styles.timePicker}>
+          <DateTimePicker
+            mode="time"
+            value={new Date(2000, 0, 1, reminder.hour, reminder.minute)}
+            onChange={handleReminderTimeChange}
+          />
+        </View>
+      ) : null}
 
       {cycle ? (
         <>
@@ -178,6 +274,19 @@ const styles = StyleSheet.create({
   rowCaption: {
     color: colors.mutedInk,
     fontSize: 14,
+  },
+  permissionDenied: {
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  openSettingsLabel: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  timePicker: {
+    alignItems: "flex-start",
+    paddingBottom: spacing.md,
   },
   emptyCopy: {
     color: colors.mutedInk,

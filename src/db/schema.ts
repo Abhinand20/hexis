@@ -35,3 +35,13 @@ export const SCHEMA_V1: string[] = [
   created_at TEXT NOT NULL
 )`,
 ];
+
+export const SCHEMA_V2: string[] = [
+  `CREATE TABLE reminder_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  enabled INTEGER NOT NULL,
+  hour INTEGER NOT NULL CHECK (hour >= 0 AND hour <= 23),
+  minute INTEGER NOT NULL CHECK (minute >= 0 AND minute <= 59),
+  notification_identifier TEXT
+)`,
+];

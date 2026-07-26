@@ -1,5 +1,5 @@
 import { Alert } from "react-native";
-import { render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import { userEvent } from "@testing-library/react-native";
 
 import TabsLayout from "../../app/(tabs)/_layout";
@@ -15,6 +15,10 @@ const mockGetActiveCycle = jest.fn();
 const mockEndCycleEarly = jest.fn();
 const mockListForCycle = jest.fn();
 const mockUseActiveCycle = jest.fn();
+const mockLoadReminder = jest.fn();
+const mockSaveReminder = jest.fn();
+const mockSetDailyReminder = jest.fn();
+const mockOpenSettings = jest.fn();
 
 jest.mock("expo-router", () => {
   return {
@@ -81,6 +85,34 @@ jest.mock("../../src/features/goals/data/goalRepository", () => ({
   }),
 }));
 
+jest.mock("../../src/features/reminders/reminderService", () => ({
+  loadReminderSettings: (...args: unknown[]) => mockLoadReminder(...args),
+  saveReminderSettings: (...args: unknown[]) => mockSaveReminder(...args),
+  setDailyReminder: (...args: unknown[]) => mockSetDailyReminder(...args),
+  DEFAULT_REMINDER: {
+    enabled: false,
+    hour: 20,
+    minute: 0,
+    notificationIdentifier: null,
+  },
+}));
+
+jest.mock("@react-native-community/datetimepicker", () => {
+  const React = require("react") as typeof import("react");
+  const { Text } = require("react-native") as typeof import("react-native");
+
+  return {
+    __esModule: true,
+    default: function MockDateTimePicker() {
+      return <Text>Time picker</Text>;
+    },
+  };
+});
+
+jest.mock("expo-linking", () => ({
+  openSettings: (...args: unknown[]) => mockOpenSettings(...args),
+}));
+
 const strengthGoal: CycleGoal = {
   id: "goal-strength",
   cycleId: "cycle-1",
@@ -99,8 +131,19 @@ beforeEach(() => {
   mockEndCycleEarly.mockReset();
   mockListForCycle.mockReset();
   mockUseActiveCycle.mockReset();
+  mockLoadReminder.mockReset();
+  mockSaveReminder.mockReset();
+  mockSetDailyReminder.mockReset();
+  mockOpenSettings.mockReset();
   mockEndCycleEarly.mockResolvedValue(undefined);
   mockResetDatabase.mockResolvedValue(undefined);
+  mockLoadReminder.mockResolvedValue({
+    enabled: false,
+    hour: 20,
+    minute: 0,
+    notificationIdentifier: null,
+  });
+  mockSaveReminder.mockResolvedValue(undefined);
   jest.restoreAllMocks();
 });
 
@@ -149,17 +192,87 @@ describe("SettingsScreen", () => {
     expect(mockListForCycle).not.toHaveBeenCalled();
   });
 
-  it("renders an inert daily reminder placeholder", async () => {
+  it("renders the daily reminder toggle reflecting loaded settings", async () => {
     mockUseActiveCycle.mockReturnValue({
       cycle: null,
       isLoading: false,
     });
+    mockLoadReminder.mockResolvedValue({
+      enabled: true,
+      hour: 9,
+      minute: 30,
+      notificationIdentifier: "notif-1",
+    });
 
     const screen = await render(<SettingsScreen />);
 
-    expect(screen.getByText("Daily reminder")).toBeTruthy();
-    expect(screen.getByText("Coming soon")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Daily reminder" })).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Daily reminder")).toBeTruthy();
+      expect(screen.getByLabelText("Daily reminder").props.value).toBe(true);
+    });
+    expect(screen.getByText("Time picker")).toBeTruthy();
+  });
+
+  it("saves an enabled reminder when the toggle is turned on", async () => {
+    mockUseActiveCycle.mockReturnValue({
+      cycle: null,
+      isLoading: false,
+    });
+    const enabledResult = {
+      enabled: true,
+      hour: 20,
+      minute: 0,
+      notificationIdentifier: "notif-new",
+    };
+    mockSetDailyReminder.mockResolvedValue(enabledResult);
+
+    const screen = await render(<SettingsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Daily reminder")).toBeTruthy();
+    });
+
+    fireEvent(screen.getByLabelText("Daily reminder"), "valueChange", true);
+
+    await waitFor(() => {
+      expect(mockSetDailyReminder).toHaveBeenCalledWith({
+        enabled: true,
+        hour: 20,
+        minute: 0,
+        notificationIdentifier: null,
+      });
+      expect(mockSaveReminder).toHaveBeenCalledWith(expect.anything(), enabledResult);
+    });
+  });
+
+  it("shows Open Settings when enabling is denied", async () => {
+    mockUseActiveCycle.mockReturnValue({
+      cycle: null,
+      isLoading: false,
+    });
+    mockSetDailyReminder.mockResolvedValue({
+      enabled: false,
+      hour: 20,
+      minute: 0,
+      notificationIdentifier: null,
+    });
+
+    const screen = await render(<SettingsScreen />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Daily reminder")).toBeTruthy();
+    });
+
+    fireEvent(screen.getByLabelText("Daily reminder"), "valueChange", true);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open Settings" })).toBeTruthy();
+      expect(screen.getByText("Notifications are off in Settings.")).toBeTruthy();
+    });
+
+    await user.press(screen.getByRole("button", { name: "Open Settings" }));
+    expect(mockOpenSettings).toHaveBeenCalled();
   });
 
   it("ends the active cycle early after confirmation and returns home", async () => {

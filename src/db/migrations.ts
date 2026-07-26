@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import { SCHEMA_V1 } from "./schema";
+import { SCHEMA_V1, SCHEMA_V2 } from "./schema";
 
-const MIGRATIONS: string[][] = [SCHEMA_V1];
+const MIGRATIONS: string[][] = [SCHEMA_V1, SCHEMA_V2];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>(
