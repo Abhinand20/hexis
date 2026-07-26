@@ -1,20 +1,20 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useDatabase } from "../../../src/db/DatabaseProvider";
 import { colors, spacing } from "../../../src/design/tokens";
+import { CycleCalendar } from "../../../src/features/cycles/components/CycleCalendar";
+import { CycleHeader } from "../../../src/features/cycles/components/CycleHeader";
+import { GoalRow } from "../../../src/features/cycles/components/GoalRow";
+import { useCycleLanding } from "../../../src/features/cycles/hooks/useCycleLanding";
 
-/**
- * Placeholder so routing works end-to-end after Task 5 (cycle creation
- * routes here) and the M1 index redirect. The real landing page (header,
- * calendar, goal list, logging) is built in Task 7.
- */
 export default function CycleLandingScreen() {
   const { cycleId } = useLocalSearchParams<{ cycleId: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { resetDatabase } = useDatabase();
+  const state = useCycleLanding(cycleId);
 
   function confirmReset() {
     Alert.alert(
@@ -34,50 +34,143 @@ export default function CycleLandingScreen() {
     );
   }
 
-  return (
-    <View
-      style={[
-        styles.container,
-        { paddingTop: insets.top, paddingBottom: insets.bottom },
-      ]}
-    >
-      <Text style={styles.title}>Cycle {cycleId}</Text>
-      <Text style={styles.subtitle}>The cycle landing page is coming soon.</Text>
-
-      {__DEV__ ? (
-        <View style={styles.debugPanel}>
-          <Text style={styles.debugLabel}>Debug only</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={confirmReset}
-            style={styles.debugButton}
-          >
-            <Text style={styles.debugButtonText}>Reset all data</Text>
-          </Pressable>
-        </View>
-      ) : null}
+  const debugPanel = __DEV__ ? (
+    <View style={styles.debugPanel}>
+      <Text style={styles.debugLabel}>Debug only</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={confirmReset}
+        style={styles.debugButton}
+      >
+        <Text style={styles.debugButtonText}>Reset all data</Text>
+      </Pressable>
     </View>
+  ) : null;
+
+  if (state.status === "loading") {
+    return null;
+  }
+
+  if (state.status === "unavailable") {
+    return (
+      <View
+        style={[
+          styles.screen,
+          styles.centered,
+          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+      >
+        <Text style={styles.emptyTitle}>There's no active cycle right now.</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.replace("/cycles/new")}
+          style={styles.primaryButton}
+        >
+          <Text style={styles.primaryButtonText}>Start a new cycle</Text>
+        </Pressable>
+        {debugPanel}
+      </View>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <View
+        style={[
+          styles.screen,
+          styles.centered,
+          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+      >
+        <Text style={styles.emptyTitle}>{state.message}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      style={styles.screen}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+      ]}
+      data={state.goals}
+      keyExtractor={(item) => item.goalId}
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      renderItem={({ item }) => (
+        <GoalRow
+          model={item}
+          // Task 8 wires this to the real logging sheet + repository write.
+          onLogPress={() => {}}
+        />
+      )}
+      ListHeaderComponent={
+        <View style={styles.header}>
+          <CycleHeader
+            cycleName={state.header.cycleName}
+            dayLabel={state.header.dayLabel}
+            daysRemainingLabel={state.header.daysRemainingLabel}
+            overallProgressRatio={state.header.overallProgressRatio}
+          />
+          <CycleCalendar
+            durationDays={state.calendarDays.length}
+            todayIndex={state.calendarDays.findIndex((day) => day.isToday)}
+            days={state.calendarDays}
+          />
+          <Text style={styles.sectionLabel}>Practices</Text>
+        </View>
+      }
+      ListFooterComponent={debugPanel}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
-    backgroundColor: "#F7F5F0",
+  screen: {
+    backgroundColor: colors.porcelain,
     flex: 1,
-    gap: 8,
+  },
+  centered: {
+    alignItems: "center",
+    gap: spacing.md,
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
   },
-  title: {
-    color: "#1B1B19",
-    fontSize: 22,
+  content: {
+    paddingHorizontal: spacing.xl,
+  },
+  header: {
+    gap: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  sectionLabel: {
+    color: colors.mutedInk,
+    fontSize: 13,
     fontWeight: "600",
+    letterSpacing: 0.5,
+    marginTop: spacing.sm,
+    textTransform: "uppercase",
   },
-  subtitle: {
-    color: "#6B6964",
-    fontSize: 15,
+  separator: {
+    backgroundColor: colors.hairline,
+    height: StyleSheet.hairlineWidth,
+  },
+  emptyTitle: {
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: "600",
     textAlign: "center",
+  },
+  primaryButton: {
+    backgroundColor: colors.verdigris,
+    borderRadius: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  primaryButtonText: {
+    color: colors.inkOnDark,
+    fontSize: 16,
+    fontWeight: "600",
   },
   debugPanel: {
     alignItems: "center",
