@@ -5,6 +5,8 @@ web-build/
 coverage/
 *.log
 .DS_Store
+ios/
+android/
 *.jks
 *.p8
 *.p12
