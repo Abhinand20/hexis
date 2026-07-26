@@ -6,6 +6,7 @@ import { CycleCalendar } from "../../src/features/cycles/components/CycleCalenda
 import { addLocalDays } from "../../src/features/cycles/domain/date";
 import type { CycleGoal } from "../../src/features/cycles/domain/types";
 import { useCycleLanding, type CycleLandingState } from "../../src/features/cycles/hooks/useCycleLanding";
+import type { CycleAchievementSummary } from "../../src/features/cycles/domain/cycleSummary";
 import { createCycle } from "../../src/test/factories";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ describe("CycleCalendar", () => {
 // ---------------------------------------------------------------------------
 
 const mockGetActiveCycle = jest.fn();
+const mockGetMostRecentCycle = jest.fn();
 const mockListForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
@@ -53,7 +55,8 @@ jest.mock("../../src/db/DatabaseProvider", () => {
 
 jest.mock("../../src/features/cycles/data/cycleRepository", () => ({
   createCycleRepository: () => ({
-    getActiveCycle: () => mockGetActiveCycle(),
+    getActiveCycle: (...args: unknown[]) => mockGetActiveCycle(...args),
+    getMostRecentCycle: () => mockGetMostRecentCycle(),
   }),
 }));
 
@@ -103,11 +106,13 @@ function logOn(cycleGoalId: string, localDate: string, durationMinutes: number) 
 
 beforeEach(() => {
   mockGetActiveCycle.mockReset();
+  mockGetMostRecentCycle.mockReset();
   mockListForCycle.mockReset();
   mockListRevisions.mockReset();
   mockListSessionLogs.mockReset();
   mockCreateSessionLog.mockReset();
   mockListRevisions.mockResolvedValue([]);
+  mockGetMostRecentCycle.mockResolvedValue(null);
 });
 
 describe("useCycleLanding", () => {
@@ -176,15 +181,67 @@ describe("useCycleLanding", () => {
     ]);
   });
 
-  it("is unavailable when there is no active cycle", async () => {
+  it("is empty when no cycle has ever existed", async () => {
     mockGetActiveCycle.mockResolvedValue(null);
+    mockGetMostRecentCycle.mockResolvedValue(null);
 
     const { result } = await renderHook(() => useCycleLanding("2026-07-24"));
 
     await waitFor(() => {
-      expect(result.current.status).toBe("unavailable");
+      expect(result.current.status).toBe("empty");
     });
     expect(mockListForCycle).not.toHaveBeenCalled();
+  });
+
+  it("returns a completed summary when the most recent cycle has ended", async () => {
+    mockGetActiveCycle.mockResolvedValue(null);
+    mockGetMostRecentCycle.mockResolvedValue(
+      createCycle({
+        id: "cycle-1",
+        name: "Summer Focus",
+        startDate: "2026-07-01",
+        durationDays: 30,
+        endDate: "2026-07-30",
+        status: "completed",
+      }),
+    );
+    mockListForCycle.mockResolvedValue([strengthGoal, readGoal]);
+    mockListSessionLogs.mockResolvedValue([
+      logOn("goal-read", "2026-07-20", 20),
+      logOn("goal-read", "2026-07-21", 20),
+      logOn("goal-strength", "2026-07-21", 60),
+    ]);
+
+    const { result } = await renderHook(() => useCycleLanding("2026-07-31"));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("completed");
+    });
+
+    const state = result.current;
+    if (state.status !== "completed") {
+      throw new Error("expected completed state");
+    }
+
+    expect(state.cycleName).toBe("Summer Focus");
+    expect(state.summary.activeDayCount).toBe(30);
+    expect(state.summary.loggedDayCount).toBe(2);
+    expect(state.summary.practiceTotals).toEqual([
+      {
+        goalId: "goal-strength",
+        name: "Strength",
+        completedCount: 1,
+        minutesLogged: 60,
+      },
+      {
+        goalId: "goal-read",
+        name: "Read",
+        completedCount: 2,
+        minutesLogged: 40,
+      },
+    ]);
+    expect(state.summary.mostConsistentPracticeName).toBe("Read");
+    expect(typeof state.refresh).toBe("function");
   });
 
   it("reloads when reloadToken changes", async () => {
@@ -343,7 +400,7 @@ describe("CycleLandingScreen", () => {
   });
 
   it("shows an empty state with a way to start a cycle when there is no active cycle", async () => {
-    mockUseCycleLanding.mockReturnValue({ status: "unavailable" } satisfies CycleLandingState);
+    mockUseCycleLanding.mockReturnValue({ status: "empty" } satisfies CycleLandingState);
 
     const screen = await render(<CycleLandingScreen />);
     const user = userEvent.setup();
@@ -353,8 +410,51 @@ describe("CycleLandingScreen", () => {
     expect(mockPush).toHaveBeenCalledWith("/setup/duration");
   });
 
+  it("shows a completed-cycle summary and a way to start a new cycle", async () => {
+    const summary: CycleAchievementSummary = {
+      activeDayCount: 30,
+      loggedDayCount: 12,
+      practiceTotals: [
+        {
+          goalId: "goal-strength",
+          name: "Strength",
+          completedCount: 8,
+          minutesLogged: 480,
+        },
+        {
+          goalId: "goal-read",
+          name: "Read",
+          completedCount: 20,
+          minutesLogged: 400,
+        },
+      ],
+      strongestWeekLabel: "Jul 20 – Jul 26",
+      mostConsistentPracticeName: "Read",
+    };
+    mockUseCycleLanding.mockReturnValue({
+      status: "completed",
+      cycleName: "Summer Focus",
+      summary,
+      refresh: jest.fn(),
+    } satisfies CycleLandingState);
+
+    const screen = await render(<CycleLandingScreen />);
+    const user = userEvent.setup();
+
+    expect(screen.getByText("Summer Focus")).toBeTruthy();
+    expect(screen.getByText(/30 active days/i)).toBeTruthy();
+    expect(screen.getByText(/12 days with logged effort/i)).toBeTruthy();
+    expect(screen.getByText("Strength")).toBeTruthy();
+    expect(screen.getByText("Read")).toBeTruthy();
+    expect(screen.getByText(/Jul 20 – Jul 26/)).toBeTruthy();
+    expect(screen.getByText(/Most consistent/i)).toBeTruthy();
+
+    await user.press(screen.getByRole("button", { name: "Start a new cycle" }));
+    expect(mockPush).toHaveBeenCalledWith("/setup/duration");
+  });
+
   it("refetches landing data when the screen gains focus", async () => {
-    mockUseCycleLanding.mockReturnValue({ status: "unavailable" } satisfies CycleLandingState);
+    mockUseCycleLanding.mockReturnValue({ status: "empty" } satisfies CycleLandingState);
 
     await render(<CycleLandingScreen />);
 

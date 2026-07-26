@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../src/design/tokens";
 import { CycleCalendar } from "../../src/features/cycles/components/CycleCalendar";
 import { CycleHeader } from "../../src/features/cycles/components/CycleHeader";
+import { CycleSummaryCard } from "../../src/features/cycles/components/CycleSummaryCard";
 import { GoalRow } from "../../src/features/cycles/components/GoalRow";
 import { todayLocalDate } from "../../src/features/cycles/domain/date";
 import { useCycleLanding } from "../../src/features/cycles/hooks/useCycleLanding";
@@ -27,7 +28,7 @@ export default function CycleLandingScreen() {
     return null;
   }
 
-  if (state.status === "unavailable") {
+  if (state.status === "empty") {
     return (
       <View
         style={[
@@ -45,6 +46,27 @@ export default function CycleLandingScreen() {
           <Text style={styles.primaryButtonText}>Start a cycle</Text>
         </Pressable>
       </View>
+    );
+  }
+
+  if (state.status === "completed") {
+    return (
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.completedContent,
+          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+      >
+        <CycleSummaryCard cycleName={state.cycleName} summary={state.summary} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/setup/duration")}
+          style={styles.primaryButton}
+        >
+          <Text style={styles.primaryButtonText}>Start a new cycle</Text>
+        </Pressable>
+      </ScrollView>
     );
   }
 
@@ -111,6 +133,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.xl,
   },
+  completedContent: {
+    gap: spacing.xl,
+    paddingHorizontal: spacing.xl,
+  },
   content: {
     paddingHorizontal: spacing.xl,
   },
@@ -137,6 +163,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   primaryButton: {
+    alignSelf: "center",
     backgroundColor: colors.verdigris,
     borderRadius: 8,
     paddingHorizontal: spacing.lg,

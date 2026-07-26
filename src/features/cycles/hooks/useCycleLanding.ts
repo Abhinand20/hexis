@@ -10,6 +10,10 @@ import {
   calendarDayIntensity,
   goalConfigurationOn,
 } from "../domain/cycleProgress";
+import {
+  buildCycleSummary,
+  type CycleAchievementSummary,
+} from "../domain/cycleSummary";
 import { addLocalDays, todayLocalDate } from "../domain/date";
 import type { GoalCadence } from "../domain/types";
 
@@ -37,8 +41,14 @@ export type CycleLandingHeader = {
 
 export type CycleLandingState =
   | { status: "loading" }
-  | { status: "unavailable" }
+  | { status: "empty" }
   | { status: "error"; message: string }
+  | {
+      status: "completed";
+      cycleName: string;
+      summary: CycleAchievementSummary;
+      refresh: () => Promise<void>;
+    }
   | {
       status: "ready";
       header: CycleLandingHeader;
@@ -83,10 +93,30 @@ export function useCycleLanding(
 
     try {
       const cycleRepository = createCycleRepository(db);
-      const activeCycle = await cycleRepository.getActiveCycle();
+      const activeCycle = await cycleRepository.getActiveCycle(today);
 
       if (!activeCycle) {
-        setState({ status: "unavailable" });
+        const recent = await cycleRepository.getMostRecentCycle();
+        if (!recent) {
+          setState({ status: "empty" });
+          return;
+        }
+
+        const goalRepository = createGoalRepository(db);
+        const goals = await goalRepository.listForCycle(recent.id);
+        const revisionsByGoal = await Promise.all(
+          goals.map((goal) => goalRepository.listRevisions(goal.id)),
+        );
+        const logs = await createSessionRepository(db).listForCycle(recent.id);
+        const revisions = revisionsByGoal.flat();
+        const summary = buildCycleSummary(recent, goals, revisions, logs);
+
+        setState({
+          status: "completed",
+          cycleName: recent.name,
+          summary,
+          refresh: load,
+        });
         return;
       }
 

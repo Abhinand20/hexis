@@ -4,6 +4,7 @@ import {
   createCycleRepository,
   type CycleRepository,
 } from "../../src/features/cycles/data/cycleRepository";
+import { addLocalDays } from "../../src/features/cycles/domain/date";
 import {
   createGoalRepository,
   type GoalRepository,
@@ -150,5 +151,24 @@ describe("cycle, goal, and session repositories", () => {
       [cycle.id],
     );
     expect(row).toEqual({ status: "ended_early", end_date: "2026-07-10" });
+  });
+
+  it("transitions an active cycle to completed once its end date has passed, and allows a new cycle afterward", async () => {
+    const cycle = await cycleRepository.createCycle(
+      createCycleInput({ startDate: "2026-06-01", durationDays: 30 }),
+    );
+    const dayAfterEnd = addLocalDays(cycle.endDate, 1);
+
+    expect(await cycleRepository.getActiveCycle(dayAfterEnd)).toBeNull();
+    expect(await cycleRepository.getMostRecentCycle()).toMatchObject({
+      id: cycle.id,
+      status: "completed",
+    });
+
+    await expect(
+      cycleRepository.createCycle(
+        createCycleInput({ name: "Next", startDate: dayAfterEnd }),
+      ),
+    ).resolves.toMatchObject({ name: "Next", status: "active" });
   });
 });

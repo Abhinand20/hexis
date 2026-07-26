@@ -1,7 +1,8 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import { cycleEndDate } from "../domain/date";
-import type { Cycle, CycleDurationDays, GoalCadence } from "../domain/types";
 import { generateId } from "../../../db/id";
+import { cycleEndDate, todayLocalDate } from "../domain/date";
+import { hasCycleEnded } from "../domain/cycleLifecycle";
+import type { Cycle, CycleDurationDays, GoalCadence } from "../domain/types";
 
 export type CreateCycleGoalInput = {
   name: string;
@@ -19,7 +20,8 @@ export type CreateCycleInput = {
 
 export interface CycleRepository {
   createCycle(input: CreateCycleInput): Promise<Cycle>;
-  getActiveCycle(): Promise<Cycle | null>;
+  getActiveCycle(today?: string): Promise<Cycle | null>;
+  getMostRecentCycle(): Promise<Cycle | null>;
   endCycleEarly(cycleId: string, localDate: string): Promise<void>;
 }
 
@@ -46,11 +48,9 @@ function mapCycle(row: CycleRow): Cycle {
 }
 
 export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
-  return {
+  const repository: CycleRepository = {
     async createCycle(input) {
-      const existing = await db.getFirstAsync<{ id: string }>(
-        "SELECT id FROM cycles WHERE status = 'active' LIMIT 1",
-      );
+      const existing = await repository.getActiveCycle();
       if (existing) {
         throw new Error("An active cycle already exists");
       }
@@ -105,9 +105,31 @@ export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
       return cycle;
     },
 
-    async getActiveCycle() {
+    async getActiveCycle(today = todayLocalDate()) {
       const row = await db.getFirstAsync<CycleRow>(
         "SELECT * FROM cycles WHERE status = 'active'",
+      );
+      if (!row) {
+        return null;
+      }
+
+      const cycle = mapCycle(row);
+      if (hasCycleEnded(cycle, today)) {
+        await db.runAsync(
+          "UPDATE cycles SET status = 'completed' WHERE id = ?",
+          [cycle.id],
+        );
+        return null;
+      }
+
+      return cycle;
+    },
+
+    async getMostRecentCycle() {
+      const row = await db.getFirstAsync<CycleRow>(
+        `SELECT * FROM cycles
+         ORDER BY start_date DESC, created_at DESC
+         LIMIT 1`,
       );
       return row ? mapCycle(row) : null;
     },
@@ -134,4 +156,6 @@ export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
       }
     },
   };
+
+  return repository;
 }
