@@ -13,9 +13,18 @@ function tabIcon(name: keyof typeof Ionicons.glyphMap) {
   return <NativeTabs.Trigger.VectorIcon family={Ionicons} name={name} />;
 }
 
+// `iconColor` must be set for both the default and selected states (not just
+// `tintColor`), or expo-router derives asymmetric icon-tinting appearance for
+// the two states (`selectedIconColor` falls back to `tintColor` while the
+// base `iconColor` stays unset). That asymmetry makes RNScreens compute a
+// different render mode ("original" vs "template") for `icon` vs
+// `selectedIcon` even though both point at the same image, which it rejects
+// with "[RNScreens] icon and selectedIcon must be same type."
+const ICON_COLOR = { default: colors.mutedInk, selected: colors.verdigris };
+
 export default function TabsLayout() {
   return (
-    <NativeTabs tintColor={colors.verdigris}>
+    <NativeTabs tintColor={colors.verdigris} iconColor={ICON_COLOR}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={tabIcon("home-outline")} />
