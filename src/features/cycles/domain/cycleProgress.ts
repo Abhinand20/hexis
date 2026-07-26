@@ -74,6 +74,84 @@ export function calculateGoalWeekProgress(
   };
 }
 
+/**
+ * Current streak for a goal, ending at (and possibly including) `today`.
+ *
+ * Daily-cadence goals streak by consecutive calendar days with a log.
+ * Weekly-cadence goals streak by consecutive weeks whose session count met
+ * that week's target. In both cases the in-progress unit (today, or the
+ * current week) never *breaks* a streak just because it isn't finished yet;
+ * it only extends the streak once it is itself satisfied. Walking backward
+ * naturally terminates once it reaches days/weeks before the goal existed,
+ * since there are no logs to satisfy the streak there.
+ */
+export function calculateGoalStreak(
+  goal: CycleGoal,
+  revisions: GoalRevision[],
+  logs: SessionLog[],
+  today: string,
+): number {
+  const goalLogs = logs.filter((log) => log.cycleGoalId === goal.id);
+  return goal.cadence === "daily"
+    ? calculateDailyStreak(goalLogs, today)
+    : calculateWeeklyStreak(goal, revisions, goalLogs, today);
+}
+
+function calculateDailyStreak(goalLogs: SessionLog[], today: string): number {
+  const loggedDates = new Set(goalLogs.map((log) => log.localDate));
+
+  let cursor = today;
+  if (!loggedDates.has(cursor)) {
+    // Today isn't over yet; a missing log today doesn't break the streak.
+    cursor = addLocalDays(cursor, -1);
+  }
+
+  let streak = 0;
+  while (loggedDates.has(cursor)) {
+    streak += 1;
+    cursor = addLocalDays(cursor, -1);
+  }
+  return streak;
+}
+
+function calculateWeeklyStreak(
+  goal: CycleGoal,
+  revisions: GoalRevision[],
+  goalLogs: SessionLog[],
+  today: string,
+): number {
+  let streak = 0;
+  let cursor = weekStart(today);
+  let isCurrentWeek = true;
+
+  while (true) {
+    const start = cursor;
+    const end = addLocalDays(start, 6);
+    const sessionCount = goalLogs.filter(
+      (log) => log.localDate >= start && log.localDate <= end,
+    ).length;
+    const target = goalConfigurationOn(goal, revisions, end).weeklyTargetCount;
+    const met = sessionCount >= target;
+
+    if (isCurrentWeek) {
+      isCurrentWeek = false;
+      if (!met) {
+        // This week isn't over yet; falling short so far doesn't break the
+        // streak, it just isn't counted until it's actually met.
+        cursor = addLocalDays(cursor, -7);
+        continue;
+      }
+    } else if (!met) {
+      break;
+    }
+
+    streak += 1;
+    cursor = addLocalDays(cursor, -7);
+  }
+
+  return streak;
+}
+
 export function calendarDayIntensity(
   cycleGoals: CycleGoal[],
   logs: SessionLog[],
