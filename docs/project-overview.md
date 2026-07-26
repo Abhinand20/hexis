@@ -19,7 +19,7 @@ People with several interests often lose momentum not because they lack goals, b
 
 1. **Finite commitments over endless lists.** Every active group of habits belongs to a 30-, 60-, or 90-day cycle.
 2. **Log effort, not intentions.** A log represents a session that occurred and records its actual duration when relevant.
-3. **One calm home, a few quiet peers.** Home (the active cycle landing page) is the default tab and primary destination; History, Week, and Settings are lightweight peer tabs for everything else. Focused tasks — starting a cycle, editing a goal — present as full-screen modals rather than adding to the tab set, so the destination set stays small and flat.
+3. **One calm home, a few quiet peers.** Home (the active cycle landing page) is the default tab and primary destination; History and Settings are lightweight peer tabs for everything else. Focused tasks — starting a cycle, editing a goal — present as full-screen modals rather than adding to the tab set, so the destination set stays small and flat.
 4. **Quiet motivation.** Streaks, contribution-style calendar marks, and progress bars communicate momentum without scores, ranks, or guilt.
 5. **Local by default.** Version one works fully offline and does not require an account.
 6. **Minimal visual language.** Porcelain & Ink uses open warm-neutral surfaces, ink-like typography, and a single muted verdigris progress signal. Glass is reserved for elevated controls and confirmation surfaces.
@@ -83,12 +83,11 @@ The UI should not ask for notification permission during onboarding. Request it 
 
 ## Navigation model
 
-Hexis uses a persistent bottom tab bar with four tabs: **Home**, **History**, **Week**, and **Settings**. Tabs are always visible, whether or not a cycle is active.
+Hexis uses a persistent bottom tab bar with three tabs: **Home**, **History**, and **Settings**. Tabs are always visible, whether or not a cycle is active.
 
-- **Home** shows the active-cycle landing page, or an empty state with a **Start a cycle** action when none exists.
-- **History** shows past and current cycle summaries.
-- **Week** shows the current weekly review.
-- **Settings** consolidates active-goal editing, the daily reminder toggle, and ending the current cycle early.
+- **Home** shows the active-cycle landing page; once the active cycle completes (naturally, or ended early) and no new cycle has replaced it, Home instead shows an achievement summary with a **Start a new cycle** action; a person who has never started a cycle sees a plain empty state with a **Start a cycle** action.
+- **History** reviews progress through a Day / Week / Cycle filter (see "Progress and insights" below). Version one scopes History to the current cycle — active or just completed — only; browsing multiple past cycles is a deferred follow-up.
+- **Settings** consolidates active-goal editing, the daily reminder (a toggle plus a time picker once enabled), and ending the current cycle early.
 
 Two flows are focused tasks rather than destinations, so they do not get their own tab: **cycle setup** (duration → practices → review) and **editing a goal**. Both present as a full-screen modal on top of the tab bar, with the tab bar hidden until the flow is dismissed. Within a modal, each step is a real navigation entry with a native header back button and the standard iOS edge-swipe-back gesture — a person can always retreat to the previous step or screen without losing entered data.
 
@@ -123,9 +122,13 @@ Practices without a duration target may still log a session with no duration. Th
 - Current week’s completed sessions versus target
 - Current week’s logged minutes versus expected minutes when applicable
 
-### Weekly review
+### History: Day filter
 
-The weekly review stays compact:
+For a selected local date, shows each configured practice's status that day — logged or not, and minutes logged versus its expected duration when applicable.
+
+### History: Week filter
+
+Weeks are calendar weeks (Monday–Sunday) — the same definition already used for per-practice weekly targets and streaks above, so a week means the same thing everywhere in the app. Defaults to the current week; a person can navigate to any earlier week within the active cycle. Each week stays compact:
 
 - Sessions completed
 - Time logged
@@ -135,14 +138,15 @@ The weekly review stays compact:
 
 It must describe the observed pattern, not make adaptive recommendations.
 
-### Cycle review
+### History: Cycle filter
 
-At completion or early exit, show:
+Shows the full-cycle contribution grid alongside:
 
 - Total active days and days with logged effort
 - Practice-level completion and duration totals
-- The contribution calendar for the cycle
 - The strongest week and most consistent practice
+
+Once the cycle is complete (naturally or ended early), this filter and Home's completed-cycle state show the same achievement summary.
 
 ## Data model
 
@@ -156,13 +160,15 @@ At completion or early exit, show:
 
 Progress is derived from logs and effective goal configuration. It is not stored as a duplicate aggregate.
 
+A cycle's `status` moves from `active` to `completed` automatically the next time the app reads cycle state after its `endDate` has passed — there is no background job, since Hexis is local-only and only needs to notice on next open.
+
 ## Technical direction
 
 | Area | Decision |
 | --- | --- |
 | Platform | iPhone-first, iOS 26+ visual target |
 | Framework | Expo with React Native and TypeScript |
-| Navigation | Expo Router: a persistent bottom tab group (Home, History, Week, Settings) plus modal-presented focused flows (cycle setup, goal editing) with native header back and swipe-back |
+| Navigation | Expo Router: a persistent bottom tab group (Home, History, Settings) plus modal-presented focused flows (cycle setup, goal editing) with native header back and swipe-back |
 | Persistence | `expo-sqlite`, versioned migrations, offline-first |
 | Notifications | `expo-notifications`, one optional app-level local reminder |
 | Native glass | `expo-glass-effect` for selective native Liquid Glass surfaces |
@@ -186,14 +192,15 @@ Progress is derived from logs and effective goal configuration. It is not stored
 Included:
 
 - 30/60/90-day cycles
-- Persistent bottom tab navigation (Home, History, Week, Settings) with modal-presented setup and goal-editing flows, native back, and swipe-back
+- Persistent bottom tab navigation (Home, History, Settings) with modal-presented setup and goal-editing flows, native back, and swipe-back
+- Automatic active-to-completed cycle transition once the end date passes, with a Home completion summary and a **Start a new cycle** action
 - Editable templates and custom practices before cycle start
 - Daily and weekly count/duration targets
 - Direct session logging with quick duration choices
 - Unified practice list, streaks, weekly progress, and active-cycle calendar
-- Weekly and cycle-complete summaries
+- Day/Week/Cycle progress review and cycle-complete summaries, scoped to the current cycle
 - Returning-user forward-only goal edits
-- One optional app-level daily reminder
+- One optional app-level daily reminder with a time picker
 - Local SQLite persistence
 
 Explicitly excluded:
@@ -205,6 +212,7 @@ Explicitly excluded:
 - Social sharing, leaderboards, and challenges
 - AI coaching or adaptive recommendations
 - Payments, subscriptions, and web/Android versions
+- Browsing multiple past (completed) cycles at once — v1 keeps History scoped to the current cycle; a cross-cycle history browser is a deferred follow-up
 
 ## Success criteria
 

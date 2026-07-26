@@ -20,7 +20,9 @@
 - Use Porcelain & Ink tokens and one muted verdigris accent; do not use gradients or glass as the default content background.
 - `expo-glass-effect` must always have a functional non-glass fallback.
 - No auth, sync, widgets, HealthKit, payments, social features, or AI behavior in v1.
-- Navigation is a persistent bottom tab bar (Home, History, Week, Settings), always visible. Cycle setup and goal editing are full-screen modals with the tab bar hidden, not tabs of their own. Every stack screen — modal steps included — supports the native header back button and iOS edge-swipe-back gesture.
+- Navigation is a persistent bottom tab bar (Home, History, Settings), always visible. Cycle setup and goal editing are full-screen modals with the tab bar hidden, not tabs of their own. Every stack screen — modal steps included — supports the native header back button and iOS edge-swipe-back gesture.
+- A "week" means the same thing everywhere in the app: a calendar week (Monday–Sunday). Do not introduce a second, cycle-relative definition.
+- History is scoped to the current cycle (active or just completed) only in v1; browsing multiple past cycles is deferred.
 
 ---
 
@@ -33,7 +35,6 @@ app/
     _layout.tsx
     index.tsx        # Home
     history.tsx
-    week.tsx
     settings/
       index.tsx
   setup/
@@ -56,6 +57,8 @@ src/
     cycles/
       data/cycleRepository.ts
       domain/cycleProgress.ts
+      domain/cycleLifecycle.ts
+      domain/cycleSummary.ts
       domain/date.ts
       domain/types.ts
       hooks/useActiveCycle.ts
@@ -778,28 +781,122 @@ git add app/setup app/cycles src/features/cycles __tests__/components/cycleSetup
 git commit -m "feat: route setup wizard and goal editor as back-navigable modals"
 ```
 
-## Phase 5 — Reviews, reminder, and release quality
+## Phase 5 — Cycle completion, unified history, reminder, and personal build
 
-### Task 11: Add weekly/cycle review and active-cycle history
+> This phase replaced an earlier, thinner "reviews + TestFlight" plan after a grilling session surfaced three real gaps: (1) `CycleStatus` already declares `"completed"`, but nothing ever sets it, so a cycle running past its end date has no way to finish and blocks starting a new one; (2) the separate Week/History tabs overlapped enough that they should be one tab with filters; (3) EAS cannot produce an installable iOS build without a paid Apple Developer account, so "release readiness" means a local Xcode build on a personal iPhone, not TestFlight.
+
+### Task 11: Fix cycle completion and add Home's completed-cycle state
 
 **Files:**
-- Modify: `app/(tabs)/week.tsx`
-- Modify: `app/(tabs)/history.tsx`
-- Create: `src/features/cycles/domain/cycleSummary.ts`
+- Create: `src/features/cycles/domain/cycleLifecycle.ts`
+- Create: `src/features/cycles/domain/cycleSummary.ts` (cycle-level selector only; Task 12 adds day/week selectors to this same file)
+- Create: `src/features/cycles/components/CycleSummaryCard.tsx` (shared by Home's completed state and History's Cycle filter)
+- Modify: `src/features/cycles/data/cycleRepository.ts`
+- Modify: `src/features/cycles/hooks/useCycleLanding.ts`
+- Modify: `app/(tabs)/index.tsx`
+- Test: `__tests__/domain/cycleLifecycle.test.ts`
 - Test: `__tests__/domain/cycleSummary.test.ts`
-- Test: `__tests__/components/cycleReview.test.tsx`
+- Test: `__tests__/data/cycleRepository.test.ts` (extend existing file)
+- Test: `__tests__/components/cycleLanding.test.tsx` (extend existing file)
 
 **Behavior:**
 
-- Weekly review reports sessions, logged minutes, goal progress, strongest day, and unmet targets.
-- History shows the entire active-cycle contribution grid with a non-color legend.
-- Cycle completion summary is available for both normally completed and early-ended cycles.
+- A cycle whose `endDate` has passed while `status` is still `"active"` transitions to `"completed"` the next time cycle state is read — lazily, with no background job. This must happen before the "one active cycle" uniqueness check `createCycle` performs, or a naturally finished cycle blocks starting a new one forever.
+- `getActiveCycle` only ever returns a cycle that is genuinely still active (not past its end date); a new `getMostRecentCycle` returns the latest cycle regardless of status, used only to detect "a cycle just finished and nothing has replaced it yet."
+- Home has three states: **active** (today's landing page, unchanged), **completed** (the most recent cycle has ended — naturally or early — and no new cycle exists yet: show `CycleSummaryCard` plus a prominent **Start a new cycle** action), and **empty** (no cycle has ever existed: today's plain "Start a cycle" state).
+- `CycleSummaryCard` shows total active days and days with logged effort, practice-level completion and duration totals, and the strongest week and most consistent practice — the same content History's Cycle filter shows in Task 12, so build it once and share it.
 
-- [ ] **Step 1: Write failing summary tests.**
+**Interfaces:**
+
+```ts
+// src/features/cycles/domain/cycleLifecycle.ts
+export function hasCycleEnded(cycle: Pick<Cycle, "endDate">, today: string): boolean;
+
+// src/features/cycles/domain/cycleSummary.ts
+export type CycleAchievementSummary = {
+  activeDayCount: number;
+  loggedDayCount: number;
+  practiceTotals: { goalId: string; name: string; completedCount: number; minutesLogged: number }[];
+  strongestWeekLabel: string | null;
+  mostConsistentPracticeName: string | null;
+};
+export function buildCycleSummary(
+  cycle: Cycle,
+  goals: CycleGoal[],
+  revisions: GoalRevision[],
+  logs: SessionLog[],
+): CycleAchievementSummary;
+
+// src/features/cycles/data/cycleRepository.ts
+export interface CycleRepository {
+  createCycle(input: CreateCycleInput): Promise<Cycle>;
+  getActiveCycle(today?: string): Promise<Cycle | null>; // defaults to todayLocalDate()
+  getMostRecentCycle(): Promise<Cycle | null>;
+  endCycleEarly(cycleId: string, localDate: string): Promise<void>;
+}
+```
+
+- [ ] **Step 1: Write failing tests for the completion transition.**
+
+```ts
+it("transitions an active cycle to completed once its end date has passed, and allows a new cycle afterward", async () => {
+  const cycle = await cycleRepository.createCycle(createCycleInput({ startDate: "2026-06-01", durationDays: 30 }));
+  const dayAfterEnd = addLocalDays(cycle.endDate, 1);
+
+  expect(await cycleRepository.getActiveCycle(dayAfterEnd)).toBeNull();
+  expect(await cycleRepository.getMostRecentCycle()).toMatchObject({ id: cycle.id, status: "completed" });
+
+  await expect(
+    cycleRepository.createCycle(createCycleInput({ name: "Next", startDate: dayAfterEnd })),
+  ).resolves.toMatchObject({ name: "Next", status: "active" });
+});
+```
+
+- [ ] **Step 2: Implement `hasCycleEnded`, thread it through `getActiveCycle`/`createCycle`, and add `getMostRecentCycle`.**
+
+`createCycle`'s existing-active-cycle check must call the same completion-resolving path as `getActiveCycle` (e.g. by calling it directly) rather than a separate raw query, so there is exactly one place that decides whether a cycle is still active.
+
+- [ ] **Step 3: Implement `buildCycleSummary` as a pure function and `CycleSummaryCard`.**
+
+Keep database reads out of `cycleSummary.ts`; it takes already-loaded cycle/goals/revisions/logs, matching the existing `cycleProgress.ts` convention.
+
+- [ ] **Step 4: Add the `completed` state to `useCycleLanding` and Home.**
+
+When `getActiveCycle` returns null, call `getMostRecentCycle`; if it returns a non-active cycle, load its goals/revisions/logs, build the summary, and return the `completed` state instead of `empty`.
+
+- [ ] **Step 5: Run tests and commit.**
+
+```bash
+npx jest __tests__/domain/cycleLifecycle.test.ts __tests__/domain/cycleSummary.test.ts __tests__/data/cycleRepository.test.ts __tests__/components/cycleLanding.test.tsx --runInBand
+npx tsc --noEmit
+git add src/features/cycles app/"(tabs)"/index.tsx __tests__
+git commit -m "fix: transition cycles to completed and show Home's completion summary"
+```
+
+### Task 12: Replace Week/History with a single History tab (Day / Week / Cycle filters)
+
+**Files:**
+- Modify: `src/features/cycles/domain/cycleSummary.ts` (add day and week selectors alongside Task 11's cycle selector)
+- Modify: `app/(tabs)/history.tsx` (replaces placeholder with the full filtered view)
+- Modify: `app/(tabs)/_layout.tsx` (remove the Week tab trigger)
+- Delete: `app/(tabs)/week.tsx`
+- Test: `__tests__/domain/cycleSummary.test.ts` (extend from Task 11)
+- Test: `__tests__/components/cycleHistory.test.tsx`
+- Test: `__tests__/components/tabShell.test.tsx` (update: three tabs, not four)
+
+**Behavior:**
+
+- History has a segmented Day / Week / Cycle control at the top, defaulting to Week.
+- **Day** shows a per-goal breakdown for a selected local date: logged or not, and minutes logged versus expected duration when applicable. Defaults to today.
+- **Week** shows the current *calendar* week (Monday–Sunday — the same definition `cycleProgress.ts` already uses for weekly targets and streaks, not a new cycle-relative one): sessions completed, time logged, target progress by practice, strongest day, and practices that missed their weekly target. Prev/next navigation is bounded to calendar weeks that overlap the active cycle's date range; the first/last week may be a partial week clipped to the cycle's actual start/end date.
+- **Cycle** shows the full-cycle contribution grid (reusing `calendarDayIntensity`, like Home's calendar) plus `CycleSummaryCard` from Task 11 — the same card Home shows once the cycle is complete.
+- History reads the current cycle only (active, or the most recent one if just completed) via the same `getActiveCycle`/`getMostRecentCycle` resolution Task 11 added; there is no cross-cycle picker in v1.
+
+- [ ] **Step 1: Write failing summary-selector tests.**
 
 ```ts
 it("identifies the strongest local day by completed practices then minutes", () => {
-  expect(findStrongestDay(logs, cycleGoals)).toEqual({
+  expect(buildWeekSummary(cycleGoals, revisions, logs, weekStartDate).strongestDay).toEqual({
     localDate: "2026-07-22",
     completedGoalCount: 3,
     minutesLogged: 140,
@@ -807,29 +904,33 @@ it("identifies the strongest local day by completed practices then minutes", () 
 });
 ```
 
-- [ ] **Step 2: Implement summary selectors as pure functions.**
+- [ ] **Step 2: Implement `buildDaySummary` and `buildWeekSummary`, reusing `weekStart`/`addLocalDays` from `date.ts` and `calculateGoalWeekProgress`/`goalConfigurationOn` from `cycleProgress.ts` where they already do the right calculation.**
 
-Keep database reads outside `cycleSummary.ts`. Its input is cycle goals, revisions, logs, and a local-date range.
+- [ ] **Step 3: Build the History screen: segmented control, Day picker, Week pager, Cycle grid.**
 
-- [ ] **Step 3: Build review screens and labels.**
+Use a plain statement such as "Strength reached 2 of 3 sessions" rather than judgmental language. Ensure the grid and week pager work with VoiceOver and Dynamic Type, and that Week navigation cannot go earlier than the cycle's start or later than today/the cycle's end.
 
-Use a plain statement such as “Strength reached 2 of 3 sessions” rather than judgmental language. Ensure the history grid works with VoiceOver and Dynamic Type.
+- [ ] **Step 4: Remove the Week tab.**
 
-- [ ] **Step 4: Run review tests and commit.**
+Update `app/(tabs)/_layout.tsx` to three triggers (Home, History, Settings) and delete `app/(tabs)/week.tsx`.
+
+- [ ] **Step 5: Run tests and commit.**
 
 ```bash
-npx jest __tests__/domain/cycleSummary.test.ts __tests__/components/cycleReview.test.tsx --runInBand
+npx jest __tests__/domain/cycleSummary.test.ts __tests__/components/cycleHistory.test.tsx __tests__/components/tabShell.test.tsx --runInBand
+npx tsc --noEmit
 git add "app/(tabs)" src/features/cycles/domain __tests__
-git commit -m "feat: add cycle reviews and history"
+git commit -m "feat: replace Week/History tabs with a single filtered History tab"
 ```
 
-### Task 12: Add optional daily reminder, resilience, and TestFlight validation
+### Task 13: Add the daily reminder with a time picker
 
 **Files:**
+- Create: `src/db/schema.ts` addition (`SCHEMA_V2`: a single-row `reminder_settings` table) and register it in `src/db/migrations.ts`
 - Create: `src/features/reminders/reminderService.ts`
-- Modify: `app/(tabs)/settings/index.tsx`
+- Modify: `app/(tabs)/settings/index.tsx` (replace the "Coming soon" placeholder with a toggle + time picker)
 - Test: `__tests__/reminders/reminderService.test.ts`
-- Create: `docs/release-checklist.md`
+- Test: `__tests__/components/tabShell.test.tsx` (extend Settings tests for the new reminder UI)
 
 **Interfaces:**
 
@@ -857,22 +958,44 @@ it("does not schedule when notification permission is denied", async () => {
 });
 ```
 
-- [ ] **Step 2: Implement permission-on-intent behavior.**
+- [ ] **Step 2: Add the `reminder_settings` migration and implement permission-on-intent behavior.**
 
-Request permission only after the person enables the reminder. Schedule one repeating local notification when permitted. On denial, leave the reminder disabled and provide a route to iOS Settings; do not block tracking.
+Request permission only after the person enables the reminder. Once granted, show a time picker; schedule one repeating local notification for the chosen hour/minute with generic, calm copy (e.g. "Time to check in on today's practices") — no per-goal dynamic content. On denial, leave the reminder disabled and provide a route to iOS Settings; do not block tracking.
 
-- [ ] **Step 3: Complete manual device validation.**
+- [ ] **Step 3: Wire the Settings row: toggle, time picker, and persistence across app restarts.**
+
+- [ ] **Step 4: Run tests and commit.**
+
+```bash
+npx jest __tests__/reminders/reminderService.test.ts __tests__/components/tabShell.test.tsx --runInBand
+npx tsc --noEmit
+git add src/db src/features/reminders "app/(tabs)/settings" __tests__
+git commit -m "feat: add daily reminder with a time picker"
+```
+
+### Task 14: Full validation and a local personal-device build
+
+EAS Build cannot produce an installable iPhone build without a paid Apple Developer Program membership — that's an Apple signing-certificate restriction, not an Expo limitation. v1 "release readiness" means a local Xcode build installed directly on one personal iPhone via a free Apple ID, which expires after 7 days and needs re-running; it explicitly does not mean TestFlight or App Store Connect.
+
+**Files:**
+- Create: `docs/release-checklist.md` (reframed as a personal-build runbook, not a TestFlight checklist)
+
+**Steps:**
+
+- [ ] **Step 1: Complete manual device validation.**
 
 Verify on a physical iOS 26 device:
 
-- cycle setup, restart, and early-end behavior
+- cycle setup, restart, natural completion (fast-forward by adjusting device date, or seed data past the end date), and early-end behavior, including that a new cycle can be started after either
+- Home's three states: active, completed-with-summary, and never-started
+- History's Day/Week/Cycle filters, including Week navigation bounded to the cycle's date range
 - local-day and weekly boundary behavior across a timezone change
 - duration selection and offline persistence after app restart
-- denied, granted, and revoked notification permissions
-- Liquid Glass and regular fallback appearance
+- denied, granted, and revoked notification permissions; the reminder fires at the configured time
+- Liquid Glass tab bar and regular fallback appearance
 - Dynamic Type, VoiceOver labels, and reduced-motion behavior
 
-- [ ] **Step 4: Run the complete automated suite.**
+- [ ] **Step 2: Run the complete automated suite.**
 
 ```bash
 npx jest --runInBand
@@ -882,12 +1005,20 @@ npx expo-doctor
 
 Expected: all commands exit with code `0`.
 
-- [ ] **Step 5: Create a TestFlight build and commit release documentation.**
+- [ ] **Step 3: Write `docs/release-checklist.md` as a reinstall runbook and commit.**
+
+Cover: `npx expo prebuild`, opening `ios/*.xcworkspace` in Xcode, signing with a free Apple ID under Signing & Capabilities, connecting the iPhone via USB (or same-network wireless debugging) and enabling Developer Mode on it, and that the install expires after 7 days and needs re-running `npx expo run:ios --device` (no App Store Connect, no push notifications under free provisioning — the reminder only needs local notifications, which are unaffected).
 
 ```bash
-git add src/features/reminders docs/release-checklist.md __tests__/reminders
-git commit -m "feat: prepare reminder and release validation"
-eas build --platform ios --profile preview
+git add docs/release-checklist.md
+git commit -m "docs: add personal-device build runbook"
+```
+
+- [ ] **Step 4: Produce the local build.**
+
+```bash
+npx expo prebuild --platform ios
+npx expo run:ios --device
 ```
 
 ## Verification matrix
@@ -903,8 +1034,10 @@ eas build --platform ios --profile preview
 | Local-only persistence | Repository integration test survives reinitialization without a network dependency |
 | Reminder is optional | Permission-denied test keeps tracking usable |
 | Glass fallback | `GlassSurface` test renders an ordinary surface when unavailable |
-| Persistent navigation | Tab-shell test asserts Home, History, Week, and Settings are present with and without an active cycle |
+| Persistent navigation | Tab-shell test asserts Home, History, and Settings are present with and without an active cycle |
 | Back-navigable modals | Navigation test confirms wizard/edit-goal state survives a back step and native back dismisses correctly |
+| Cycle completion | Repository test asserts an active cycle past its end date reads as completed and no longer blocks creating a new one |
+| Consistent week definition | `cycleSummary.ts`'s week selector reuses `weekStart` from `date.ts`; no second week-boundary implementation exists |
 
 ## Deferred follow-up plan
 
@@ -916,4 +1049,6 @@ Create a separate plan only after version one is stable for any of these indepen
 - Goal membership changes in an active cycle
 - Android/web support
 - Per-practice notifications
+- Cross-cycle history browsing (v1 keeps History scoped to the current cycle only)
+- TestFlight/App Store distribution (requires enrolling in the paid Apple Developer Program)
 
