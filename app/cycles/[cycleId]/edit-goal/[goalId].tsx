@@ -105,7 +105,7 @@ export default function EditGoalScreen() {
   }, [db, cycleId, goalId]);
 
   function goBack() {
-    router.replace(`/cycles/${cycleId}`);
+    router.back();
   }
 
   async function handleSave(value: GoalEditorValue) {
@@ -124,7 +124,7 @@ export default function EditGoalScreen() {
         weeklyTargetCount: value.weeklyTargetCount,
         expectedDurationMinutes: value.expectedDurationMinutes,
       });
-      router.replace(`/cycles/${cycleId}`);
+      router.back();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Something went wrong. Try again.";
@@ -166,7 +166,6 @@ export default function EditGoalScreen() {
       ]}
     >
       <View style={styles.section}>
-        <Text style={styles.heading}>Edit practice</Text>
         <Text style={styles.copy}>
           Changes apply from today. Earlier logged sessions won't change.
         </Text>
@@ -195,11 +194,6 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: spacing.md,
-  },
-  heading: {
-    color: colors.ink,
-    fontSize: 24,
-    fontWeight: "600",
   },
   copy: {
     color: colors.mutedInk,

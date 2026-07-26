@@ -5,7 +5,7 @@ import EditGoalScreen from "../../app/cycles/[cycleId]/edit-goal/[goalId]";
 import type { Cycle, CycleGoal, GoalRevision } from "../../src/features/cycles/domain/types";
 import { createCycle } from "../../src/test/factories";
 
-const mockReplace = jest.fn();
+const mockBack = jest.fn();
 const mockCreateRevision = jest.fn();
 const createRevision = mockCreateRevision;
 const mockGetActiveCycle = jest.fn();
@@ -18,7 +18,7 @@ jest.mock("expo-router", () => ({
     cycleId: "cycle-1",
     goalId: "goal-strength",
   }),
-  useRouter: () => ({ replace: mockReplace }),
+  useRouter: () => ({ back: mockBack }),
 }));
 
 jest.mock("../../src/db/DatabaseProvider", () => {
@@ -74,7 +74,7 @@ function createDeferred<T>() {
 }
 
 beforeEach(() => {
-  mockReplace.mockReset();
+  mockBack.mockReset();
   createRevision.mockReset();
   mockGetActiveCycle.mockReset();
   mockListForCycle.mockReset();
@@ -128,7 +128,7 @@ it("saves a revision for today and navigates back on success", async () => {
       weeklyTargetCount: 4,
     }),
   );
-  expect(mockReplace).not.toHaveBeenCalled();
+  expect(mockBack).not.toHaveBeenCalled();
 
   deferred.resolve({
     id: "revision-1",
@@ -141,7 +141,7 @@ it("saves a revision for today and navigates back on success", async () => {
   });
 
   await waitFor(() => {
-    expect(mockReplace).toHaveBeenCalledWith("/cycles/cycle-1");
+    expect(mockBack).toHaveBeenCalled();
   });
 });
 
@@ -149,6 +149,7 @@ it("shows an unavailable state when the cycle is not active", async () => {
   mockGetActiveCycle.mockResolvedValue(null);
 
   const screen = await render(<EditGoalScreen />);
+  const user = userEvent.setup();
 
   await waitFor(() => {
     expect(screen.getByText("This cycle is no longer active.")).toBeTruthy();
@@ -156,6 +157,9 @@ it("shows an unavailable state when the cycle is not active", async () => {
   expect(screen.getByRole("button", { name: "Back to cycle" })).toBeTruthy();
   expect(screen.queryByLabelText("Practice name")).toBeNull();
   expect(mockListForCycle).not.toHaveBeenCalled();
+
+  await user.press(screen.getByRole("button", { name: "Back to cycle" }));
+  expect(mockBack).toHaveBeenCalled();
 });
 
 it("shows a retryable error when createRevision fails and does not navigate", async () => {
@@ -172,7 +176,7 @@ it("shows a retryable error when createRevision fails and does not navigate", as
     ).toBeTruthy();
   });
   expect(screen.getByRole("button", { name: "Save updates" })).toBeEnabled();
-  expect(mockReplace).not.toHaveBeenCalled();
+  expect(mockBack).not.toHaveBeenCalled();
 });
 
 it("shows an unavailable state when the active cycle id does not match", async () => {

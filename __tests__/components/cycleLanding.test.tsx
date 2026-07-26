@@ -350,7 +350,7 @@ describe("CycleLandingScreen", () => {
 
     expect(screen.getByText("There's no active cycle right now.")).toBeTruthy();
     await user.press(screen.getByRole("button", { name: "Start a cycle" }));
-    expect(mockPush).toHaveBeenCalledWith("/cycles/new");
+    expect(mockPush).toHaveBeenCalledWith("/setup/duration");
   });
 
   it("refetches landing data when the screen gains focus", async () => {

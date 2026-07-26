@@ -39,7 +39,7 @@ export default function CycleLandingScreen() {
         <Text style={styles.emptyTitle}>There's no active cycle right now.</Text>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push("/cycles/new")}
+          onPress={() => router.push("/setup/duration")}
           style={styles.primaryButton}
         >
           <Text style={styles.primaryButtonText}>Start a cycle</Text>

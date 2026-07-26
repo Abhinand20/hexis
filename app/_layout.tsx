@@ -9,6 +9,18 @@ export default function RootLayout() {
       <DatabaseProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="setup"
+            options={{ presentation: "modal", headerShown: false }}
+          />
+          <Stack.Screen
+            name="cycles/[cycleId]/edit-goal/[goalId]"
+            options={{
+              presentation: "modal",
+              headerShown: true,
+              title: "Edit practice",
+            }}
+          />
         </Stack>
       </DatabaseProvider>
     </SafeAreaProvider>
