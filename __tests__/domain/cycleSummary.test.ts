@@ -1,4 +1,8 @@
-import { buildCycleSummary } from "../../src/features/cycles/domain/cycleSummary";
+import {
+  buildCycleSummary,
+  buildDaySummary,
+  buildWeekSummary,
+} from "../../src/features/cycles/domain/cycleSummary";
 import type { CycleGoal, GoalRevision, SessionLog } from "../../src/features/cycles/domain/types";
 import { createCycle } from "../../src/test/factories";
 
@@ -181,5 +185,141 @@ describe("buildCycleSummary", () => {
     );
     // Write and Run both have 2; Write comes first in goals order
     expect(summary.mostConsistentPracticeName).toBe("Write");
+  });
+});
+
+describe("buildDaySummary", () => {
+  it("returns one practice entry per goal with logged status and minutes for the day", () => {
+    const revisions: GoalRevision[] = [
+      {
+        id: "rev-1",
+        cycleGoalId: "goal-write",
+        effectiveDate: "2026-07-15",
+        name: "Write mornings",
+        cadence: "daily",
+        weeklyTargetCount: 5,
+        expectedDurationMinutes: 45,
+      },
+    ];
+    const logs: SessionLog[] = [
+      log("goal-write", "2026-07-22", 30),
+      log("goal-write", "2026-07-22", null),
+      log("goal-run", "2026-07-21", 45),
+      log("goal-read", "2026-07-22", 20),
+    ];
+
+    expect(
+      buildDaySummary([writeGoal, runGoal, readGoal], revisions, logs, "2026-07-22"),
+    ).toEqual({
+      localDate: "2026-07-22",
+      practices: [
+        {
+          goalId: "goal-write",
+          name: "Write mornings",
+          logged: true,
+          minutesLogged: 30,
+          expectedDurationMinutes: 45,
+        },
+        {
+          goalId: "goal-run",
+          name: "Run",
+          logged: false,
+          minutesLogged: null,
+          expectedDurationMinutes: 45,
+        },
+        {
+          goalId: "goal-read",
+          name: "Read",
+          logged: true,
+          minutesLogged: 20,
+          expectedDurationMinutes: 20,
+        },
+      ],
+    });
+  });
+});
+
+describe("buildWeekSummary", () => {
+  const cycleGoals = [writeGoal, runGoal, readGoal];
+  const weekStartDate = "2026-07-20";
+
+  it("identifies the strongest local day by completed practices then minutes", () => {
+    const logs: SessionLog[] = [
+      // Mon 20: 2 goals, 90 min
+      log("goal-write", "2026-07-20", 40),
+      log("goal-run", "2026-07-20", 50),
+      // Tue 21: 3 goals, 90 min — loses to Wed on minutes
+      log("goal-write", "2026-07-21", 30),
+      log("goal-run", "2026-07-21", 30),
+      log("goal-read", "2026-07-21", 30),
+      // Wed 22: 3 goals, 140 min — wins
+      log("goal-write", "2026-07-22", 50),
+      log("goal-run", "2026-07-22", 50),
+      log("goal-read", "2026-07-22", 40),
+      // Thu 23: 1 goal
+      log("goal-write", "2026-07-23", 30),
+    ];
+    const revisions: GoalRevision[] = [];
+
+    expect(buildWeekSummary(cycleGoals, revisions, logs, weekStartDate).strongestDay).toEqual({
+      localDate: "2026-07-22",
+      completedGoalCount: 3,
+      minutesLogged: 140,
+    });
+  });
+
+  it("returns null strongestDay when no practices were completed in the week", () => {
+    expect(buildWeekSummary(cycleGoals, [], [], weekStartDate).strongestDay).toBeNull();
+  });
+
+  it("sums session and minute totals and lists practices that missed their target", () => {
+    // Write (daily target 5): 2 sessions → missed
+    // Run (weekly target 3): 3 sessions → met
+    // Read (daily target 7): 1 session → missed
+    const logs: SessionLog[] = [
+      log("goal-write", "2026-07-20", 30),
+      log("goal-write", "2026-07-21", null),
+      log("goal-run", "2026-07-20", 45),
+      log("goal-run", "2026-07-22", 45),
+      log("goal-run", "2026-07-24", 45),
+      log("goal-read", "2026-07-22", 20),
+    ];
+
+    const summary = buildWeekSummary(cycleGoals, [], logs, "2026-07-23");
+
+    expect(summary.weekStartDate).toBe("2026-07-20");
+    expect(summary.weekEndDate).toBe("2026-07-26");
+    expect(summary.sessionCount).toBe(6);
+    expect(summary.minutesLogged).toBe(185);
+    expect(summary.practiceProgress).toEqual([
+      {
+        goalId: "goal-write",
+        name: "Write",
+        sessionCount: 2,
+        sessionTarget: 5,
+        minutesLogged: 30,
+        minutesTarget: 150,
+        met: false,
+      },
+      {
+        goalId: "goal-run",
+        name: "Run",
+        sessionCount: 3,
+        sessionTarget: 3,
+        minutesLogged: 135,
+        minutesTarget: 135,
+        met: true,
+      },
+      {
+        goalId: "goal-read",
+        name: "Read",
+        sessionCount: 1,
+        sessionTarget: 7,
+        minutesLogged: 20,
+        minutesTarget: 140,
+        met: false,
+      },
+    ]);
+    expect(summary.missedTargetGoalNames).toEqual(["Write", "Read"]);
   });
 });

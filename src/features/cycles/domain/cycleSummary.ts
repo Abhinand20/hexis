@@ -1,4 +1,7 @@
-import { goalConfigurationOn } from "./cycleProgress";
+import {
+  calculateGoalWeekProgress,
+  goalConfigurationOn,
+} from "./cycleProgress";
 import { addLocalDays, weekStart } from "./date";
 import type { Cycle, CycleGoal, GoalRevision, SessionLog } from "./types";
 
@@ -13,6 +16,45 @@ export type CycleAchievementSummary = {
   }[];
   strongestWeekLabel: string | null;
   mostConsistentPracticeName: string | null;
+};
+
+export type DayPracticeStatus = {
+  goalId: string;
+  name: string;
+  logged: boolean;
+  minutesLogged: number | null;
+  expectedDurationMinutes: number | null;
+};
+
+export type DaySummary = {
+  localDate: string;
+  practices: DayPracticeStatus[];
+};
+
+export type WeekPracticeProgress = {
+  goalId: string;
+  name: string;
+  sessionCount: number;
+  sessionTarget: number;
+  minutesLogged: number;
+  minutesTarget: number | null;
+  met: boolean;
+};
+
+export type WeekStrongestDay = {
+  localDate: string;
+  completedGoalCount: number;
+  minutesLogged: number;
+} | null;
+
+export type WeekSummary = {
+  weekStartDate: string;
+  weekEndDate: string;
+  sessionCount: number;
+  minutesLogged: number;
+  practiceProgress: WeekPracticeProgress[];
+  strongestDay: WeekStrongestDay;
+  missedTargetGoalNames: string[];
 };
 
 const MONTH_NAMES = [
@@ -134,5 +176,116 @@ export function buildCycleSummary(
     practiceTotals,
     strongestWeekLabel: strongestWeekLabel(cycle, logs),
     mostConsistentPracticeName,
+  };
+}
+
+export function buildDaySummary(
+  goals: CycleGoal[],
+  revisions: GoalRevision[],
+  logs: SessionLog[],
+  localDate: string,
+): DaySummary {
+  const practices = goals.map((goal) => {
+    const config = goalConfigurationOn(goal, revisions, localDate);
+    const dayLogs = logs.filter(
+      (log) => log.cycleGoalId === goal.id && log.localDate === localDate,
+    );
+    const logged = dayLogs.length > 0;
+    return {
+      goalId: goal.id,
+      name: config.name,
+      logged,
+      minutesLogged: logged
+        ? dayLogs.reduce((sum, log) => sum + (log.durationMinutes ?? 0), 0)
+        : null,
+      expectedDurationMinutes: config.expectedDurationMinutes,
+    };
+  });
+
+  return { localDate, practices };
+}
+
+export function buildWeekSummary(
+  goals: CycleGoal[],
+  revisions: GoalRevision[],
+  logs: SessionLog[],
+  weekStartDate: string,
+): WeekSummary {
+  const monday = weekStart(weekStartDate);
+  const weekEndDate = addLocalDays(monday, 6);
+
+  const practiceProgress: WeekPracticeProgress[] = goals.map((goal) => {
+    const progress = calculateGoalWeekProgress(goal, revisions, logs, monday);
+    const name = goalConfigurationOn(goal, revisions, monday).name;
+    return {
+      goalId: goal.id,
+      name,
+      sessionCount: progress.sessionCount,
+      sessionTarget: progress.sessionTarget,
+      minutesLogged: progress.minutesLogged,
+      minutesTarget: progress.minutesTarget,
+      met: progress.sessionCount >= progress.sessionTarget,
+    };
+  });
+
+  const sessionCount = practiceProgress.reduce(
+    (sum, practice) => sum + practice.sessionCount,
+    0,
+  );
+  const minutesLogged = practiceProgress.reduce(
+    (sum, practice) => sum + practice.minutesLogged,
+    0,
+  );
+  const missedTargetGoalNames = practiceProgress
+    .filter((practice) => !practice.met)
+    .map((practice) => practice.name);
+
+  const goalIds = new Set(goals.map((goal) => goal.id));
+  let strongestDay: WeekStrongestDay = null;
+
+  for (let offset = 0; offset < 7; offset += 1) {
+    const localDate = addLocalDays(monday, offset);
+    const dayLogs = logs.filter((log) => log.localDate === localDate);
+    const completedGoalIds = new Set(
+      dayLogs
+        .filter((log) => goalIds.has(log.cycleGoalId))
+        .map((log) => log.cycleGoalId),
+    );
+    const completedGoalCount = completedGoalIds.size;
+    const dayMinutes = dayLogs.reduce(
+      (sum, log) => sum + (log.durationMinutes ?? 0),
+      0,
+    );
+
+    if (completedGoalCount === 0) {
+      continue;
+    }
+
+    const isBetter =
+      strongestDay === null ||
+      completedGoalCount > strongestDay.completedGoalCount ||
+      (completedGoalCount === strongestDay.completedGoalCount &&
+        dayMinutes > strongestDay.minutesLogged) ||
+      (completedGoalCount === strongestDay.completedGoalCount &&
+        dayMinutes === strongestDay.minutesLogged &&
+        localDate < strongestDay.localDate);
+
+    if (isBetter) {
+      strongestDay = {
+        localDate,
+        completedGoalCount,
+        minutesLogged: dayMinutes,
+      };
+    }
+  }
+
+  return {
+    weekStartDate: monday,
+    weekEndDate,
+    sessionCount,
+    minutesLogged,
+    practiceProgress,
+    strongestDay,
+    missedTargetGoalNames,
   };
 }
