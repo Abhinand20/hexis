@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, spacing } from "../../../design/tokens";
+import { LogSessionSheet } from "../../logging/components/LogSessionSheet";
+import type { SessionLog } from "../domain/types";
 import { ProgressLine } from "./ProgressLine";
 
 export type GoalRowModel = {
@@ -9,14 +12,17 @@ export type GoalRowModel = {
   streakLabel: string;
   weeklyProgressLabel: string;
   weeklyProgressRatio: number;
+  expectedDurationMinutes: number | null;
 };
 
 export type GoalRowProps = {
   model: GoalRowModel;
-  onLogPress: () => void;
+  onLogged?: (log: SessionLog) => void;
 };
 
-export function GoalRow({ model, onLogPress }: GoalRowProps) {
+export function GoalRow({ model, onLogged }: GoalRowProps) {
+  const [sheetVisible, setSheetVisible] = useState(false);
+
   return (
     <View style={styles.row}>
       <View style={styles.info}>
@@ -30,11 +36,22 @@ export function GoalRow({ model, onLogPress }: GoalRowProps) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Log ${model.name}`}
-        onPress={onLogPress}
+        onPress={() => setSheetVisible(true)}
         style={styles.logButton}
       >
         <Text style={styles.logButtonText}>Log</Text>
       </Pressable>
+
+      <LogSessionSheet
+        goal={{
+          id: model.goalId,
+          name: model.name,
+          expectedDurationMinutes: model.expectedDurationMinutes,
+        }}
+        visible={sheetVisible}
+        onDismiss={() => setSheetVisible(false)}
+        onLogged={onLogged}
+      />
     </View>
   );
 }

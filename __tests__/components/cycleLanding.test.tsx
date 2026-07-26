@@ -35,6 +35,7 @@ const mockGetActiveCycle = jest.fn();
 const mockListForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
+const mockCreateSessionLog = jest.fn();
 
 // Stable `db` reference — a fresh `{}` each render would recreate `load` in
 // useCycleLanding (deps include `db`) and loop forever under RNTL's async act.
@@ -66,6 +67,7 @@ jest.mock("../../src/features/goals/data/goalRepository", () => ({
 jest.mock("../../src/features/logging/data/sessionRepository", () => ({
   createSessionRepository: () => ({
     listForCycle: (...args: unknown[]) => mockListSessionLogs(...args),
+    create: (...args: unknown[]) => mockCreateSessionLog(...args),
   }),
 }));
 
@@ -104,6 +106,7 @@ beforeEach(() => {
   mockListForCycle.mockReset();
   mockListRevisions.mockReset();
   mockListSessionLogs.mockReset();
+  mockCreateSessionLog.mockReset();
   mockListRevisions.mockResolvedValue([]);
 });
 
@@ -160,6 +163,7 @@ describe("useCycleLanding", () => {
         streakLabel: "No streak yet",
         weeklyProgressLabel: "2/3 this week",
         weeklyProgressRatio: 2 / 3,
+        expectedDurationMinutes: 60,
       },
       {
         goalId: "goal-read",
@@ -167,6 +171,7 @@ describe("useCycleLanding", () => {
         streakLabel: "5 days streak",
         weeklyProgressLabel: "5/7 this week",
         weeklyProgressRatio: 5 / 7,
+        expectedDurationMinutes: 20,
       },
     ]);
   });
@@ -255,6 +260,7 @@ describe("CycleLandingScreen", () => {
           streakLabel: "No streak yet",
           weeklyProgressLabel: "2/3 this week",
           weeklyProgressRatio: 2 / 3,
+          expectedDurationMinutes: 60,
         },
         {
           goalId: "goal-read",
@@ -262,6 +268,7 @@ describe("CycleLandingScreen", () => {
           streakLabel: "5 days streak",
           weeklyProgressLabel: "5/7 this week",
           weeklyProgressRatio: 5 / 7,
+          expectedDurationMinutes: 20,
         },
       ],
       refresh: jest.fn(),
@@ -296,5 +303,47 @@ describe("CycleLandingScreen", () => {
     expect(screen.getByText("There's no active cycle right now.")).toBeTruthy();
     await user.press(screen.getByRole("button", { name: "Start a new cycle" }));
     expect(mockReplace).toHaveBeenCalledWith("/cycles/new");
+  });
+
+  it("opens the log sheet from a goal row, saves a session, and refreshes the landing data", async () => {
+    const refresh = jest.fn();
+    mockUseCycleLanding.mockReturnValue({
+      status: "ready",
+      header: {
+        cycleName: "Summer Focus",
+        dayLabel: "Day 24 / 30",
+        daysRemainingLabel: "6 days remaining",
+        overallProgressRatio: 5 / 24,
+      },
+      calendarDays: buildCalendarDays(),
+      goals: [
+        {
+          goalId: "goal-strength",
+          name: "Strength",
+          streakLabel: "No streak yet",
+          weeklyProgressLabel: "2/3 this week",
+          weeklyProgressRatio: 2 / 3,
+          expectedDurationMinutes: 60,
+        },
+      ],
+      refresh,
+    } satisfies CycleLandingState);
+    mockCreateSessionLog.mockResolvedValue({
+      id: "log-1",
+      cycleGoalId: "goal-strength",
+      localDate: "2026-07-25",
+      durationMinutes: 60,
+      createdAt: "2026-07-25T00:00:00.000Z",
+    });
+
+    const screen = await render(<CycleLandingScreen />);
+    const user = userEvent.setup();
+
+    await user.press(screen.getByRole("button", { name: "Log Strength" }));
+    await user.press(screen.getByRole("button", { name: "Save 60 min" }));
+
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalledTimes(1);
+    });
   });
 });

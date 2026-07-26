@@ -100,8 +100,9 @@ export default function CycleLandingScreen() {
       renderItem={({ item }) => (
         <GoalRow
           model={item}
-          // Task 8 wires this to the real logging sheet + repository write.
-          onLogPress={() => {}}
+          onLogged={() => {
+            void state.refresh();
+          }}
         />
       )}
       ListHeaderComponent={

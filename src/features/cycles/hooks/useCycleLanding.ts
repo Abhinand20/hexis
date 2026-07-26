@@ -25,6 +25,7 @@ export type CycleLandingGoalRow = {
   streakLabel: string;
   weeklyProgressLabel: string;
   weeklyProgressRatio: number;
+  expectedDurationMinutes: number | null;
 };
 
 export type CycleLandingHeader = {
@@ -137,6 +138,7 @@ export function useCycleLanding(
           streakLabel: formatStreakLabel(goal.cadence, streak),
           weeklyProgressLabel: `${progress.sessionCount}/${progress.sessionTarget} this week`,
           weeklyProgressRatio,
+          expectedDurationMinutes: config.expectedDurationMinutes,
         };
       });
 
