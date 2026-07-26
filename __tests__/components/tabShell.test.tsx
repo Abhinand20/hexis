@@ -17,28 +17,39 @@ const mockListForCycle = jest.fn();
 const mockUseActiveCycle = jest.fn();
 
 jest.mock("expo-router", () => {
-  const React = require("react") as typeof import("react");
-  const { Text } = require("react-native") as typeof import("react-native");
-
-  function MockTabs({ children }: { children: React.ReactNode }) {
-    return <>{children}</>;
-  }
-
-  MockTabs.Screen = function MockTabScreen({
-    name,
-    options,
-  }: {
-    name: string;
-    options?: { title?: string };
-  }) {
-    return <Text accessibilityRole="tab">{options?.title ?? name}</Text>;
-  };
-
   return {
     ...jest.requireActual("expo-router"),
     useRouter: () => ({ push: mockPush, navigate: mockNavigate }),
-    Tabs: MockTabs,
   };
+});
+
+jest.mock("expo-router/unstable-native-tabs", () => {
+  const React = require("react") as typeof import("react");
+  const { Text } = require("react-native") as typeof import("react-native");
+
+  function MockNativeTabs({ children }: { children: React.ReactNode }) {
+    return <>{children}</>;
+  }
+
+  function MockTrigger({ children }: { children: React.ReactNode }) {
+    return <>{children}</>;
+  }
+
+  MockTrigger.Label = function MockLabel({ children }: { children?: string }) {
+    return <Text accessibilityRole="tab">{children}</Text>;
+  };
+
+  MockTrigger.Icon = function MockIcon() {
+    return null;
+  };
+
+  MockTrigger.VectorIcon = function MockVectorIcon() {
+    return null;
+  };
+
+  MockNativeTabs.Trigger = MockTrigger;
+
+  return { NativeTabs: MockNativeTabs };
 });
 
 jest.mock("../../src/db/DatabaseProvider", () => {
