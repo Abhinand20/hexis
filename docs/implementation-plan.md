@@ -20,6 +20,7 @@
 - Use Porcelain & Ink tokens and one muted verdigris accent; do not use gradients or glass as the default content background.
 - `expo-glass-effect` must always have a functional non-glass fallback.
 - No auth, sync, widgets, HealthKit, payments, social features, or AI behavior in v1.
+- Navigation is a persistent bottom tab bar (Home, History, Week, Settings), always visible. Cycle setup and goal editing are full-screen modals with the tab bar hidden, not tabs of their own. Every stack screen — modal steps included — supports the native header back button and iOS edge-swipe-back gesture.
 
 ---
 
@@ -28,14 +29,21 @@
 ```text
 app/
   _layout.tsx
-  index.tsx
-  cycles/
-    new.tsx
-    [cycleId]/
+  (tabs)/
+    _layout.tsx
+    index.tsx        # Home
+    history.tsx
+    week.tsx
+    settings/
       index.tsx
+  setup/
+    _layout.tsx       # modal group, tab bar hidden
+    duration.tsx
+    practices.tsx
+    review.tsx
+  cycles/
+    [cycleId]/
       edit-goal/[goalId].tsx
-      week.tsx
-      history.tsx
 src/
   db/
     client.ts
@@ -675,13 +683,108 @@ git add src/features/logging src/features/cycles/components/GoalRow.tsx __tests_
 git commit -m "feat: add direct session logging"
 ```
 
-## Phase 4 — Reviews, reminder, and release quality
+## Phase 4 — Navigation shell: tabs, modals, and back-stack
 
-### Task 9: Add weekly/cycle review and active-cycle history
+### Task 9: Add the persistent bottom tab shell
 
 **Files:**
-- Create: `app/cycles/[cycleId]/week.tsx`
-- Create: `app/cycles/[cycleId]/history.tsx`
+- Create: `app/(tabs)/_layout.tsx`
+- Create: `app/(tabs)/index.tsx` (Home)
+- Create: `app/(tabs)/history.tsx` (placeholder content until Task 11)
+- Create: `app/(tabs)/week.tsx` (placeholder content until Task 11)
+- Create: `app/(tabs)/settings/index.tsx`
+- Modify: `app/_layout.tsx`, `app/index.tsx`
+- Test: `__tests__/components/tabShell.test.tsx`
+
+**Behavior:**
+
+- Four tabs — Home, History, Week, Settings — are always visible, whether or not a cycle is active.
+- Home renders the existing active-cycle landing page when a cycle exists; otherwise it shows an empty state with a **Start a cycle** action that opens the setup modal.
+- History and Week show a plain "No active cycle yet" placeholder until Task 11 fills in real summaries.
+- Settings lists three rows: **Edit goals** (opens the active-goal editor modal per goal), **Reminder** (placeholder row, wired up in Task 12), and **End cycle early** (confirms, then calls `endCycleEarly` and returns to Home).
+- `app/index.tsx` no longer performs the has-active-cycle redirect; that decision moves into the Home tab itself.
+
+- [ ] **Step 1: Write a failing tab-shell test.**
+
+```tsx
+it("shows all four tabs and an empty-state CTA when no cycle is active", () => {
+  const screen = render(<TabsLayout />);
+  expect(screen.getByRole("tab", { name: "Home" })).toBeTruthy();
+  expect(screen.getByRole("tab", { name: "History" })).toBeTruthy();
+  expect(screen.getByRole("tab", { name: "Week" })).toBeTruthy();
+  expect(screen.getByRole("tab", { name: "Settings" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Start a cycle" })).toBeTruthy();
+});
+```
+
+- [ ] **Step 2: Implement the tab group and move the active-cycle landing page under Home.**
+
+Use Expo Router's `(tabs)` group. Reuse the existing `CycleLandingScreen` implementation for the active-cycle case inside `app/(tabs)/index.tsx`; add the empty-state branch alongside it.
+
+- [ ] **Step 3: Implement the Settings list and wire the debug reset panel into it (dev builds only).**
+
+Keep the `__DEV__`-only "Reset all data" action; move it from the landing-page footer into Settings so the landing page stays focused on the active cycle.
+
+- [ ] **Step 4: Run the tab-shell tests and commit.**
+
+```bash
+npx jest __tests__/components/tabShell.test.tsx --runInBand
+git add app src/features/cycles __tests__/components/tabShell.test.tsx
+git commit -m "feat: add persistent bottom tab shell"
+```
+
+### Task 10: Route the setup wizard and goal editor as back-navigable modals
+
+**Files:**
+- Create: `app/setup/_layout.tsx`, `app/setup/duration.tsx`, `app/setup/practices.tsx`, `app/setup/review.tsx`
+- Modify: `app/cycles/[cycleId]/edit-goal/[goalId].tsx`
+- Create: a shared setup-state provider (e.g. `src/features/cycles/hooks/useCycleSetupState.ts`) so wizard fields survive step navigation
+- Test: `__tests__/components/cycleSetupNavigation.test.tsx`
+
+**Behavior:**
+
+- The setup wizard becomes three real routes instead of one screen with internal step state; each step pushes the next and supports the native header back button and edge-swipe-back gesture.
+- The `setup` route group is presented modally over the tab bar; the tab bar is hidden for its duration and reappears on dismiss or completion.
+- Backing out of the first step (duration) dismisses the modal back to whichever tab opened it.
+- `edit-goal` keeps its existing validation and save behavior but adopts the same native header back instead of a custom "Cancel" affordance as the only way out.
+- No wizard or editor field is lost when moving back a step; forward re-entry restores prior selections.
+
+- [ ] **Step 1: Write a failing back-navigation test.**
+
+```tsx
+it("preserves the selected duration when navigating back from practices", async () => {
+  const screen = render(<SetupNavigator />);
+  await userEvent.press(screen.getByRole("button", { name: "60 days" }));
+  await userEvent.press(screen.getByRole("button", { name: "Continue" }));
+  await userEvent.press(screen.getByLabelText("Back"));
+  expect(screen.getByRole("button", { name: "60 days" })).toHaveAccessibilityState({ selected: true });
+});
+```
+
+- [ ] **Step 2: Split `CycleSetupScreen` into three routed steps backed by shared state.**
+
+Move `SetupStep`'s three post-welcome states (`duration`, `practices`, `review`) into `app/setup/*.tsx` routes; lift `durationDays`, `templates`, `customPractices`, and `cycleName` into the shared provider so each route reads/writes the same state.
+
+- [ ] **Step 3: Present the setup group and edit-goal as modals with tabs hidden.**
+
+Use Expo Router's modal presentation (`presentation: "modal"` or a dedicated stack group) so the tab bar is not visible while either flow is active.
+
+- [ ] **Step 4: Run the navigation tests and commit.**
+
+```bash
+npx jest __tests__/components/cycleSetupNavigation.test.tsx --runInBand
+npx tsc --noEmit
+git add app/setup app/cycles src/features/cycles __tests__/components/cycleSetupNavigation.test.tsx
+git commit -m "feat: route setup wizard and goal editor as back-navigable modals"
+```
+
+## Phase 5 — Reviews, reminder, and release quality
+
+### Task 11: Add weekly/cycle review and active-cycle history
+
+**Files:**
+- Modify: `app/(tabs)/week.tsx`
+- Modify: `app/(tabs)/history.tsx`
 - Create: `src/features/cycles/domain/cycleSummary.ts`
 - Test: `__tests__/domain/cycleSummary.test.ts`
 - Test: `__tests__/components/cycleReview.test.tsx`
@@ -716,15 +819,15 @@ Use a plain statement such as “Strength reached 2 of 3 sessions” rather than
 
 ```bash
 npx jest __tests__/domain/cycleSummary.test.ts __tests__/components/cycleReview.test.tsx --runInBand
-git add app/cycles src/features/cycles/domain __tests__
+git add "app/(tabs)" src/features/cycles/domain __tests__
 git commit -m "feat: add cycle reviews and history"
 ```
 
-### Task 10: Add optional daily reminder, resilience, and TestFlight validation
+### Task 12: Add optional daily reminder, resilience, and TestFlight validation
 
 **Files:**
 - Create: `src/features/reminders/reminderService.ts`
-- Modify: `app/cycles/[cycleId]/index.tsx`
+- Modify: `app/(tabs)/settings/index.tsx`
 - Test: `__tests__/reminders/reminderService.test.ts`
 - Create: `docs/release-checklist.md`
 
@@ -800,6 +903,8 @@ eas build --platform ios --profile preview
 | Local-only persistence | Repository integration test survives reinitialization without a network dependency |
 | Reminder is optional | Permission-denied test keeps tracking usable |
 | Glass fallback | `GlassSurface` test renders an ordinary surface when unavailable |
+| Persistent navigation | Tab-shell test asserts Home, History, Week, and Settings are present with and without an active cycle |
+| Back-navigable modals | Navigation test confirms wizard/edit-goal state survives a back step and native back dismisses correctly |
 
 ## Deferred follow-up plan
 

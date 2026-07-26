@@ -19,7 +19,7 @@ People with several interests often lose momentum not because they lack goals, b
 
 1. **Finite commitments over endless lists.** Every active group of habits belongs to a 30-, 60-, or 90-day cycle.
 2. **Log effort, not intentions.** A log represents a session that occurred and records its actual duration when relevant.
-3. **One calm home.** The active cycle landing page is the default destination.
+3. **One calm home, a few quiet peers.** Home (the active cycle landing page) is the default tab and primary destination; History, Week, and Settings are lightweight peer tabs for everything else. Focused tasks — starting a cycle, editing a goal — present as full-screen modals rather than adding to the tab set, so the destination set stays small and flat.
 4. **Quiet motivation.** Streaks, contribution-style calendar marks, and progress bars communicate momentum without scores, ranks, or guilt.
 5. **Local by default.** Version one works fully offline and does not require an account.
 6. **Minimal visual language.** Porcelain & Ink uses open warm-neutral surfaces, ink-like typography, and a single muted verdigris progress signal. Glass is reserved for elevated controls and confirmation surfaces.
@@ -80,6 +80,17 @@ The first-run flow should stay short and deliberately progressive:
 5. **Review and start:** show the entire group and duration together before creating the cycle.
 
 The UI should not ask for notification permission during onboarding. Request it only when the person actively enables the single app-level daily reminder.
+
+## Navigation model
+
+Hexis uses a persistent bottom tab bar with four tabs: **Home**, **History**, **Week**, and **Settings**. Tabs are always visible, whether or not a cycle is active.
+
+- **Home** shows the active-cycle landing page, or an empty state with a **Start a cycle** action when none exists.
+- **History** shows past and current cycle summaries.
+- **Week** shows the current weekly review.
+- **Settings** consolidates active-goal editing, the daily reminder toggle, and ending the current cycle early.
+
+Two flows are focused tasks rather than destinations, so they do not get their own tab: **cycle setup** (duration → practices → review) and **editing a goal**. Both present as a full-screen modal on top of the tab bar, with the tab bar hidden until the flow is dismissed. Within a modal, each step is a real navigation entry with a native header back button and the standard iOS edge-swipe-back gesture — a person can always retreat to the previous step or screen without losing entered data.
 
 ## Active cycle landing page
 
@@ -151,7 +162,7 @@ Progress is derived from logs and effective goal configuration. It is not stored
 | --- | --- |
 | Platform | iPhone-first, iOS 26+ visual target |
 | Framework | Expo with React Native and TypeScript |
-| Navigation | Expo Router |
+| Navigation | Expo Router: a persistent bottom tab group (Home, History, Week, Settings) plus modal-presented focused flows (cycle setup, goal editing) with native header back and swipe-back |
 | Persistence | `expo-sqlite`, versioned migrations, offline-first |
 | Notifications | `expo-notifications`, one optional app-level local reminder |
 | Native glass | `expo-glass-effect` for selective native Liquid Glass surfaces |
@@ -175,6 +186,7 @@ Progress is derived from logs and effective goal configuration. It is not stored
 Included:
 
 - 30/60/90-day cycles
+- Persistent bottom tab navigation (Home, History, Week, Settings) with modal-presented setup and goal-editing flows, native back, and swipe-back
 - Editable templates and custom practices before cycle start
 - Daily and weekly count/duration targets
 - Direct session logging with quick duration choices
