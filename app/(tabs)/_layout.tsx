@@ -3,44 +3,34 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 import { colors } from "../../src/design/tokens";
 
+// A single icon per tab, tinted by `tintColor` for the active state.
+// A distinct filled/outline pair per default/selected state was tried, but
+// `NativeTabs.Trigger.VectorIcon` resolves each icon via an async
+// `getImageSource` call, and when the two promises for a tab settle on
+// different frames, RNScreens briefly sees a `selectedIcon` with no matching
+// `icon` and throws. Using one glyph per tab avoids the race entirely.
+function tabIcon(name: keyof typeof Ionicons.glyphMap) {
+  return <NativeTabs.Trigger.VectorIcon family={Ionicons} name={name} />;
+}
+
 export default function TabsLayout() {
   return (
     <NativeTabs tintColor={colors.verdigris}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={{
-            default: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="home-outline" />,
-            selected: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="home" />,
-          }}
-        />
+        <NativeTabs.Trigger.Icon src={tabIcon("home-outline")} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <NativeTabs.Trigger.Label>History</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={{
-            default: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="time-outline" />,
-            selected: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="time" />,
-          }}
-        />
+        <NativeTabs.Trigger.Icon src={tabIcon("time-outline")} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="week">
         <NativeTabs.Trigger.Label>Week</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={{
-            default: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="calendar-outline" />,
-            selected: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="calendar" />,
-          }}
-        />
+        <NativeTabs.Trigger.Icon src={tabIcon("calendar-outline")} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings/index">
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={{
-            default: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="settings-outline" />,
-            selected: <NativeTabs.Trigger.VectorIcon family={Ionicons} name="settings" />,
-          }}
-        />
+        <NativeTabs.Trigger.Icon src={tabIcon("settings-outline")} />
       </NativeTabs.Trigger>
     </NativeTabs>
   );
