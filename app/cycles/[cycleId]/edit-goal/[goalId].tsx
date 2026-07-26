@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../../../src/design/tokens";
 import { useDatabase } from "../../../../src/db/DatabaseProvider";
@@ -36,6 +37,7 @@ export default function EditGoalScreen() {
     goalId: string;
   }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { db } = useDatabase();
   const { updateGoal, isPending } = useUpdateGoal();
 
@@ -136,7 +138,12 @@ export default function EditGoalScreen() {
 
   if (loadState.status === "unavailable") {
     return (
-      <View style={styles.screen}>
+      <View
+        style={[
+          styles.screen,
+          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+      >
         <View style={styles.section}>
           <Text style={styles.copy}>This cycle is no longer active.</Text>
           <Pressable
@@ -152,7 +159,12 @@ export default function EditGoalScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View
+      style={[
+        styles.screen,
+        { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+      ]}
+    >
       <View style={styles.section}>
         <Text style={styles.heading}>Edit practice</Text>
         <Text style={styles.copy}>
@@ -179,7 +191,7 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: colors.porcelain,
     flex: 1,
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
   },
   section: {
     gap: spacing.md,

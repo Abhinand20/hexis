@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../src/design/tokens";
 import type { CreateCycleGoalInput } from "../../src/features/cycles/data/cycleRepository";
@@ -106,6 +109,7 @@ function toGoalInput(practice: GoalEditorValue): CreateCycleGoalInput {
 
 export function CycleSetupScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { createCycle, isPending } = useCreateCycle();
 
   const [step, setStep] = useState<SetupStep>("duration");
@@ -231,9 +235,15 @@ export function CycleSetupScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={[styles.screen, { paddingTop: insets.top }]}
+    >
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: spacing.xxl + insets.bottom },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         {step === "duration" ? (
@@ -383,7 +393,7 @@ export function CycleSetupScreen() {
           onSave={handleEditorSave}
         />
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

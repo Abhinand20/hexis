@@ -1,12 +1,15 @@
 import { useState } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../../design/tokens";
 import type { GoalCadence } from "../../cycles/domain/types";
@@ -43,6 +46,7 @@ export function GoalEditor({
   onSave,
   onCancel,
 }: GoalEditorProps) {
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState(initialValue.name);
   const [cadence, setCadence] = useState<GoalCadence>(initialValue.cadence);
   const [weeklyTargetCount, setWeeklyTargetCount] = useState(
@@ -90,8 +94,13 @@ export function GoalEditor({
 
   return (
     <Modal animationType="slide" transparent visible onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.backdrop}
+      >
+        <View
+          style={[styles.sheet, { paddingBottom: spacing.xxl + insets.bottom }]}
+        >
           <Text style={styles.title}>
             {mode === "create" ? "Add practice" : "Edit practice"}
           </Text>
@@ -193,7 +202,7 @@ export function GoalEditor({
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

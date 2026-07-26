@@ -1,5 +1,9 @@
-import { useLocalSearchParams } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useDatabase } from "../../../src/db/DatabaseProvider";
+import { colors, spacing } from "../../../src/design/tokens";
 
 /**
  * Placeholder so routing works end-to-end after Task 5 (cycle creation
@@ -8,11 +12,50 @@ import { StyleSheet, Text, View } from "react-native";
  */
 export default function CycleLandingScreen() {
   const { cycleId } = useLocalSearchParams<{ cycleId: string }>();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { resetDatabase } = useDatabase();
+
+  function confirmReset() {
+    Alert.alert(
+      "Reset all local data?",
+      "This deletes every cycle, goal, and logged session on this device so you can walk through onboarding again. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            await resetDatabase();
+            router.replace("/cycles/new");
+          },
+        },
+      ],
+    );
+  }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: insets.top, paddingBottom: insets.bottom },
+      ]}
+    >
       <Text style={styles.title}>Cycle {cycleId}</Text>
       <Text style={styles.subtitle}>The cycle landing page is coming soon.</Text>
+
+      {__DEV__ ? (
+        <View style={styles.debugPanel}>
+          <Text style={styles.debugLabel}>Debug only</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={confirmReset}
+            style={styles.debugButton}
+          >
+            <Text style={styles.debugButtonText}>Reset all data</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -35,5 +78,33 @@ const styles = StyleSheet.create({
     color: "#6B6964",
     fontSize: 15,
     textAlign: "center",
+  },
+  debugPanel: {
+    alignItems: "center",
+    borderColor: colors.hairline,
+    borderRadius: 12,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    gap: spacing.sm,
+    marginTop: spacing.xxl,
+    padding: spacing.lg,
+  },
+  debugLabel: {
+    color: colors.mutedInk,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  debugButton: {
+    backgroundColor: "#8B3A3A",
+    borderRadius: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  debugButtonText: {
+    color: colors.inkOnDark,
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
