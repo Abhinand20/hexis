@@ -1,4 +1,4 @@
-import { addLocalDays, cycleEndDate, weekStart } from "../../src/features/cycles/domain/date";
+import { addLocalDays, cycleEndDate, todayLocalDate, weekStart } from "../../src/features/cycles/domain/date";
 
 describe("addLocalDays", () => {
   it("adds days without shifting across a UTC boundary", () => {
@@ -35,5 +35,17 @@ describe("weekStart", () => {
 
   it("rolls Sunday back to the preceding Monday", () => {
     expect(weekStart("2026-07-26")).toBe("2026-07-20");
+  });
+});
+
+describe("todayLocalDate", () => {
+  it("formats a Date's local year/month/day, zero-padded", () => {
+    expect(todayLocalDate(new Date(2026, 0, 5))).toBe("2026-01-05");
+  });
+
+  it("does not shift across a UTC boundary for late-night local times", () => {
+    // 11:30pm local time must still report the local calendar day, not the
+    // UTC day it may already have rolled into.
+    expect(todayLocalDate(new Date(2026, 6, 24, 23, 30))).toBe("2026-07-24");
   });
 });

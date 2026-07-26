@@ -24,3 +24,15 @@ export function weekStart(date: string): string {
   const daysSinceMonday = (d.getUTCDay() + 6) % 7;
   return addLocalDays(date, -daysSinceMonday);
 }
+
+/**
+ * Formats a JS `Date` as a local `YYYY-MM-DD` string using its local
+ * year/month/day components (never UTC), matching how every other local-date
+ * string in the app is produced.
+ */
+export function todayLocalDate(referenceDate: Date = new Date()): string {
+  const year = referenceDate.getFullYear();
+  const month = String(referenceDate.getMonth() + 1).padStart(2, "0");
+  const day = String(referenceDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
