@@ -1,7 +1,7 @@
-import { render, renderHook, waitFor } from "@testing-library/react-native";
+import { act, render, renderHook, waitFor } from "@testing-library/react-native";
 import { userEvent } from "@testing-library/react-native";
 
-import CycleLandingScreen from "../../app/cycles/[cycleId]/index";
+import CycleLandingScreen from "../../app/(tabs)/index";
 import { CycleCalendar } from "../../src/features/cycles/components/CycleCalendar";
 import { addLocalDays } from "../../src/features/cycles/domain/date";
 import type { CycleGoal } from "../../src/features/cycles/domain/types";
@@ -133,7 +133,7 @@ describe("useCycleLanding", () => {
     ]);
 
     // RNTL 14: renderHook is async (same pattern as DatabaseProvider.test.tsx).
-    const { result } = await renderHook(() => useCycleLanding("cycle-1", "2026-07-24"));
+    const { result } = await renderHook(() => useCycleLanding("2026-07-24"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("ready");
@@ -179,7 +179,7 @@ describe("useCycleLanding", () => {
   it("is unavailable when there is no active cycle", async () => {
     mockGetActiveCycle.mockResolvedValue(null);
 
-    const { result } = await renderHook(() => useCycleLanding("cycle-1", "2026-07-24"));
+    const { result } = await renderHook(() => useCycleLanding("2026-07-24"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("unavailable");
@@ -187,13 +187,49 @@ describe("useCycleLanding", () => {
     expect(mockListForCycle).not.toHaveBeenCalled();
   });
 
-  it("is unavailable when the active cycle id does not match the route", async () => {
-    mockGetActiveCycle.mockResolvedValue(createCycle({ id: "cycle-other" }));
+  it("reloads when reloadToken changes", async () => {
+    mockGetActiveCycle.mockResolvedValue(
+      createCycle({
+        id: "cycle-1",
+        name: "First Focus",
+        startDate: "2026-07-01",
+        durationDays: 30,
+        endDate: "2026-07-30",
+      }),
+    );
+    mockListForCycle.mockResolvedValue([strengthGoal]);
+    mockListSessionLogs.mockResolvedValue([]);
 
-    const { result } = await renderHook(() => useCycleLanding("cycle-1", "2026-07-24"));
+    const { result, rerender } = await renderHook(
+      ({ token }: { token: number }) => useCycleLanding("2026-07-24", token),
+      { initialProps: { token: 0 } },
+    );
 
     await waitFor(() => {
-      expect(result.current.status).toBe("unavailable");
+      expect(result.current.status).toBe("ready");
+    });
+    if (result.current.status !== "ready") {
+      throw new Error("expected ready state");
+    }
+    expect(result.current.header.cycleName).toBe("First Focus");
+
+    mockGetActiveCycle.mockResolvedValue(
+      createCycle({
+        id: "cycle-1",
+        name: "Second Focus",
+        startDate: "2026-07-01",
+        durationDays: 30,
+        endDate: "2026-07-30",
+      }),
+    );
+
+    rerender({ token: 1 });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("ready");
+      if (result.current.status === "ready") {
+        expect(result.current.header.cycleName).toBe("Second Focus");
+      }
     });
   });
 });
@@ -202,14 +238,24 @@ describe("useCycleLanding", () => {
 // CycleLandingScreen (route composition; useCycleLanding mocked wholesale)
 // ---------------------------------------------------------------------------
 
-const mockReplace = jest.fn();
+const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 const mockUseCycleLanding = jest.fn();
+let mockFocusEffectCallback: (() => void) | undefined;
 
-jest.mock("expo-router", () => ({
-  ...jest.requireActual("expo-router"),
-  useLocalSearchParams: () => ({ cycleId: "cycle-1" }),
-  useRouter: () => ({ replace: mockReplace }),
-}));
+jest.mock("expo-router", () => {
+  const React = require("react") as typeof import("react");
+  return {
+    ...jest.requireActual("expo-router"),
+    useRouter: () => ({ push: mockPush, navigate: mockNavigate }),
+    useFocusEffect: (cb: () => void) => {
+      mockFocusEffectCallback = cb;
+      React.useEffect(() => {
+        cb();
+      }, [cb]);
+    },
+  };
+});
 
 // Fall back to the real hook unless a screen test configures the mock —
 // otherwise the hoisted mock would also break the useCycleLanding unit tests
@@ -239,8 +285,10 @@ function buildCalendarDays() {
 
 describe("CycleLandingScreen", () => {
   beforeEach(() => {
-    mockReplace.mockReset();
+    mockPush.mockReset();
+    mockNavigate.mockReset();
     mockUseCycleLanding.mockReset();
+    mockFocusEffectCallback = undefined;
   });
 
   it("renders the header, calendar, and goal rows from a ready state", async () => {
@@ -294,15 +342,36 @@ describe("CycleLandingScreen", () => {
     expect(screen.getByRole("button", { name: "Log Read" })).toBeTruthy();
   });
 
-  it("shows an empty state with a way to start a new cycle when there is no active cycle", async () => {
+  it("shows an empty state with a way to start a cycle when there is no active cycle", async () => {
     mockUseCycleLanding.mockReturnValue({ status: "unavailable" } satisfies CycleLandingState);
 
     const screen = await render(<CycleLandingScreen />);
     const user = userEvent.setup();
 
     expect(screen.getByText("There's no active cycle right now.")).toBeTruthy();
-    await user.press(screen.getByRole("button", { name: "Start a new cycle" }));
-    expect(mockReplace).toHaveBeenCalledWith("/cycles/new");
+    await user.press(screen.getByRole("button", { name: "Start a cycle" }));
+    expect(mockPush).toHaveBeenCalledWith("/cycles/new");
+  });
+
+  it("refetches landing data when the screen gains focus", async () => {
+    mockUseCycleLanding.mockReturnValue({ status: "unavailable" } satisfies CycleLandingState);
+
+    await render(<CycleLandingScreen />);
+
+    await waitFor(() => {
+      const tokens = mockUseCycleLanding.mock.calls.map((call) => call[1] as number);
+      expect(Math.max(...tokens)).toBeGreaterThanOrEqual(1);
+    });
+
+    expect(mockFocusEffectCallback).toBeDefined();
+    await act(async () => {
+      mockFocusEffectCallback!();
+    });
+
+    await waitFor(() => {
+      const tokens = mockUseCycleLanding.mock.calls.map((call) => call[1] as number);
+      expect(Math.max(...tokens)).toBeGreaterThanOrEqual(2);
+    });
   });
 
   it("opens the log sheet from a goal row, saves a session, and refreshes the landing data", async () => {

@@ -67,10 +67,11 @@ function formatDaysRemainingLabel(daysRemaining: number): string {
  *
  * `today` defaults to the real local date; tests pass it explicitly to stay
  * deterministic without faking system time.
+ * `reloadToken` has no logic of its own — bumping it forces a reload.
  */
 export function useCycleLanding(
-  cycleId: string,
   today: string = todayLocalDate(),
+  reloadToken: number = 0,
 ): CycleLandingState {
   const { db } = useDatabase();
   const [state, setState] = useState<CycleLandingState>({ status: "loading" });
@@ -84,11 +85,12 @@ export function useCycleLanding(
       const cycleRepository = createCycleRepository(db);
       const activeCycle = await cycleRepository.getActiveCycle();
 
-      if (!activeCycle || activeCycle.id !== cycleId) {
+      if (!activeCycle) {
         setState({ status: "unavailable" });
         return;
       }
 
+      const cycleId = activeCycle.id;
       const goalRepository = createGoalRepository(db);
       const goals = await goalRepository.listForCycle(cycleId);
       const revisionsByGoal = await Promise.all(
@@ -161,7 +163,7 @@ export function useCycleLanding(
           err instanceof Error ? err.message : "Something went wrong. Try again.",
       });
     }
-  }, [db, cycleId, today]);
+  }, [db, today, reloadToken]);
 
   useEffect(() => {
     void load();
