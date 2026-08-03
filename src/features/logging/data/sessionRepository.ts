@@ -10,6 +10,7 @@ export type CreateSessionLogInput = {
 
 export interface SessionRepository {
   create(input: CreateSessionLogInput): Promise<SessionLog>;
+  deleteById(id: string): Promise<void>;
   listForCycle(cycleId: string): Promise<SessionLog[]>;
 }
 
@@ -67,6 +68,10 @@ export function createSessionRepository(db: SQLiteDatabase): SessionRepository {
         [cycleId],
       );
       return rows.map(mapSessionLog);
+    },
+
+    async deleteById(id) {
+      await db.runAsync("DELETE FROM session_logs WHERE id = ?", [id]);
     },
   };
 }

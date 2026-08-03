@@ -11,13 +11,16 @@ import { GoalRow } from "../../src/features/cycles/components/GoalRow";
 import { todayLocalDate } from "../../src/features/cycles/domain/date";
 import type { SessionLog } from "../../src/features/cycles/domain/types";
 import { useCycleLanding } from "../../src/features/cycles/hooks/useCycleLanding";
+import { useLogSession } from "../../src/features/logging/hooks/useLogSession";
 
 export default function CycleLandingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [focusVersion, setFocusVersion] = useState(0);
-  const [quickLogConfirmation, setQuickLogConfirmation] = useState<string | null>(null);
+  const [quickLogConfirmation, setQuickLogConfirmation] = useState<SessionLog | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
   const confirmationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { removeSession, isPending: isUndoPending } = useLogSession();
 
   useEffect(
     () => () => {
@@ -35,20 +38,47 @@ export default function CycleLandingScreen() {
   );
 
   const state = useCycleLanding(todayLocalDate(), focusVersion);
+  const refresh = state.status === "ready" ? state.refresh : null;
 
   const showQuickLogConfirmation = useCallback((log: SessionLog) => {
     if (confirmationTimeout.current !== null) {
       clearTimeout(confirmationTimeout.current);
     }
 
-    setQuickLogConfirmation(
-      log.durationMinutes === null ? "Logged" : `Logged · ${log.durationMinutes} min`,
-    );
+    setUndoError(null);
+    setQuickLogConfirmation(log);
     confirmationTimeout.current = setTimeout(() => {
       setQuickLogConfirmation(null);
+      setUndoError(null);
       confirmationTimeout.current = null;
-    }, 2500);
+    }, 5000);
   }, []);
+
+  const removeLog = useCallback(
+    async (log: SessionLog) => {
+      await removeSession(log.id);
+      if (quickLogConfirmation?.id === log.id) {
+        setQuickLogConfirmation(null);
+        setUndoError(null);
+        if (confirmationTimeout.current !== null) {
+          clearTimeout(confirmationTimeout.current);
+          confirmationTimeout.current = null;
+        }
+      }
+      await refresh?.();
+    },
+    [quickLogConfirmation, refresh, removeSession],
+  );
+
+  const handleUndoQuickLog = useCallback(() => {
+    if (!quickLogConfirmation || isUndoPending) {
+      return;
+    }
+
+    void removeLog(quickLogConfirmation).catch((err) => {
+      setUndoError(err instanceof Error ? err.message : "Could not undo. Try again.");
+    });
+  }, [isUndoPending, quickLogConfirmation, removeLog]);
 
   if (state.status === "loading") {
     return null;
@@ -124,6 +154,8 @@ export default function CycleLandingScreen() {
           <GoalRow
             model={item}
             onQuickLogged={showQuickLogConfirmation}
+            onUndoLog={removeLog}
+            isUndoPending={isUndoPending}
             onLogged={() => {
               void state.refresh();
             }}
@@ -148,10 +180,22 @@ export default function CycleLandingScreen() {
       />
 
       {quickLogConfirmation ? (
-        <View pointerEvents="none" style={[styles.confirmation, { bottom: insets.bottom + 72 }]}>
+        <View style={[styles.confirmation, { bottom: insets.bottom + 72 }]}>
           <Text accessibilityLiveRegion="polite" style={styles.confirmationText}>
-            {quickLogConfirmation}
+            {undoError ?? (quickLogConfirmation.durationMinutes === null
+              ? "Logged"
+              : `Logged · ${quickLogConfirmation.durationMinutes} min`)}
           </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Undo last log"
+            accessibilityState={{ disabled: isUndoPending }}
+            disabled={isUndoPending}
+            onPress={handleUndoQuickLog}
+            style={styles.undoAction}
+          >
+            <Text style={styles.undoActionText}>{isUndoPending ? "Undoing…" : "Undo"}</Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -178,8 +222,11 @@ const styles = StyleSheet.create({
   },
   confirmation: {
     alignSelf: "center",
+    alignItems: "center",
     backgroundColor: colors.ink,
     borderRadius: 999,
+    flexDirection: "row",
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     position: "absolute",
@@ -188,6 +235,16 @@ const styles = StyleSheet.create({
     color: colors.inkOnDark,
     fontSize: 15,
     fontWeight: "600",
+  },
+  undoAction: {
+    minHeight: 36,
+    justifyContent: "center",
+  },
+  undoActionText: {
+    color: colors.inkOnDark,
+    fontSize: 15,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   header: {
     gap: spacing.lg,

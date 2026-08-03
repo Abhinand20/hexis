@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -15,6 +16,9 @@ export type GoalRowModel = {
   streakLabel: string;
   weeklyProgressLabel: string;
   weeklyProgressRatio: number;
+  weeklySessionCount: number;
+  weeklySessionTarget: number;
+  todayLogs: SessionLog[];
   expectedDurationMinutes: number | null;
 };
 
@@ -22,13 +26,25 @@ export type GoalRowProps = {
   model: GoalRowModel;
   onLogged?: (log: SessionLog) => void;
   onQuickLogged?: (log: SessionLog) => void;
+  onUndoLog?: (log: SessionLog) => Promise<void>;
+  isUndoPending?: boolean;
 };
 
-export function GoalRow({ model, onLogged, onQuickLogged }: GoalRowProps) {
+export function GoalRow({
+  model,
+  onLogged,
+  onQuickLogged,
+  onUndoLog,
+  isUndoPending = false,
+}: GoalRowProps) {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [quickLogError, setQuickLogError] = useState<string | null>(null);
   const quickLogInFlight = useRef(false);
   const { logSession, isPending } = useLogSession();
+  const targetMet = model.weeklySessionCount >= model.weeklySessionTarget;
+  const sessionControlLabel = targetMet
+    ? `${model.name}: weekly target met with ${model.weeklySessionCount} sessions. Log another session.`
+    : `Log ${model.name}: ${model.weeklySessionCount} of ${model.weeklySessionTarget} sessions this week.`;
 
   async function handleQuickLog() {
     if (quickLogInFlight.current || isPending) {
@@ -57,6 +73,33 @@ export function GoalRow({ model, onLogged, onQuickLogged }: GoalRowProps) {
 
   return (
     <View style={styles.row}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Logs one session using the expected duration."
+        accessibilityLabel={sessionControlLabel}
+        accessibilityState={{ disabled: isPending }}
+        disabled={isPending}
+        onPress={() => {
+          void handleQuickLog();
+        }}
+        style={[styles.sessionControl, isPending ? styles.buttonDisabled : null]}
+      >
+        <View
+          style={[
+            styles.sessionIndicator,
+            targetMet ? styles.sessionIndicatorMet : null,
+            model.weeklySessionCount > 0 && !targetMet
+              ? styles.sessionIndicatorInProgress
+              : null,
+          ]}
+        >
+          {targetMet ? (
+            <Ionicons color={colors.inkOnDark} name="checkmark" size={18} />
+          ) : model.weeklySessionCount > 0 ? (
+            <Text style={styles.sessionControlCount}>{model.weeklySessionCount}</Text>
+          ) : null}
+        </View>
+      </Pressable>
       <View style={styles.info}>
         <Text style={styles.name}>{model.name}</Text>
         <Text style={styles.streak}>{model.streakLabel}</Text>
@@ -69,25 +112,16 @@ export function GoalRow({ model, onLogged, onQuickLogged }: GoalRowProps) {
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Log ${model.name}`}
-          accessibilityState={{ disabled: isPending }}
-          disabled={isPending}
-          onPress={() => {
-            void handleQuickLog();
-          }}
-          style={[styles.logButton, isPending ? styles.buttonDisabled : null]}
-        >
-          <Text style={styles.logButtonText}>Log</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
           accessibilityLabel={`Log details for ${model.name}`}
-          accessibilityState={{ disabled: isPending }}
-          disabled={isPending}
+          accessibilityState={{ disabled: isPending || isUndoPending }}
+          disabled={isPending || isUndoPending}
           onPress={() => setSheetVisible(true)}
-          style={[styles.detailsButton, isPending ? styles.buttonDisabled : null]}
+          style={[
+            styles.detailsButton,
+            isPending || isUndoPending ? styles.buttonDisabled : null,
+          ]}
         >
-          <Text style={styles.detailsButtonText}>Details</Text>
+          <Ionicons color={colors.mutedInk} name="ellipsis-horizontal" size={22} />
         </Pressable>
       </View>
 
@@ -100,6 +134,9 @@ export function GoalRow({ model, onLogged, onQuickLogged }: GoalRowProps) {
         visible={sheetVisible}
         onDismiss={() => setSheetVisible(false)}
         onLogged={onLogged}
+        onUndoLog={onUndoLog}
+        todayLogs={model.todayLogs}
+        undoPending={isUndoPending}
       />
     </View>
   );
@@ -115,6 +152,34 @@ const styles = StyleSheet.create({
   info: {
     flex: 1,
     gap: spacing.xs,
+  },
+  sessionControl: {
+    alignItems: "center",
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  sessionIndicator: {
+    alignItems: "center",
+    borderColor: colors.mutedInk,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  sessionIndicatorInProgress: {
+    backgroundColor: "#E4EEEA",
+    borderColor: colors.verdigris,
+  },
+  sessionIndicatorMet: {
+    backgroundColor: colors.verdigris,
+    borderColor: colors.verdigris,
+  },
+  sessionControlCount: {
+    color: colors.verdigris,
+    fontSize: 13,
+    fontWeight: "700",
   },
   name: {
     color: colors.ink,
@@ -134,31 +199,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.xs,
   },
-  logButton: {
-    backgroundColor: colors.verdigris,
-    borderRadius: 8,
-    justifyContent: "center",
-    minHeight: 44,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
   buttonDisabled: {
     opacity: 0.6,
   },
-  logButtonText: {
-    color: colors.inkOnDark,
-    fontSize: 15,
-    fontWeight: "600",
-  },
   detailsButton: {
+    alignItems: "center",
     justifyContent: "center",
     minHeight: 44,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  detailsButtonText: {
-    color: colors.verdigris,
-    fontSize: 13,
-    fontWeight: "600",
+    width: 44,
   },
 });
