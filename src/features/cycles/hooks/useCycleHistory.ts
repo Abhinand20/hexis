@@ -24,7 +24,7 @@ export type CycleHistoryState =
  * History does not distinguish completed from active beyond needing *a*
  * cycle with its goals/revisions/logs.
  */
-export function useCycleHistory(): CycleHistoryState {
+export function useCycleHistory(refreshVersion = 0): CycleHistoryState {
   const { db } = useDatabase();
   const [state, setState] = useState<CycleHistoryState>({ status: "loading" });
 
@@ -64,7 +64,7 @@ export function useCycleHistory(): CycleHistoryState {
           err instanceof Error ? err.message : "Something went wrong. Try again.",
       });
     }
-  }, [db]);
+  }, [db, refreshVersion]);
 
   useEffect(() => {
     void load();

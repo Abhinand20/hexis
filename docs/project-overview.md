@@ -123,17 +123,17 @@ Practices without a duration target may still log a session with no duration. Th
 
 ### History: Day filter
 
-For a selected local date, shows total sessions and minutes, each configured practice's status — logged or not, and minutes logged versus its expected duration when applicable — and a chronological, read-only list of that day's sessions with practice name, actual time, and duration. Calendar taps open this filter for the selected past/current day, and bounded Previous/Next controls move between dates in the current cycle.
+For a selected local date, shows total sessions and minutes plus each configured practice's status — logged or not, and minutes logged versus its expected duration when applicable. Bounded Previous/Next controls move between dates in the current cycle, so the view is a browsable daily ledger rather than a today-only summary. A chronological session list and calendar deep-link remain part of the calendar day-progress follow-up.
 
 ### History: Week filter
 
-Weeks are calendar weeks (Monday–Sunday) — the same definition already used for per-practice weekly targets and streaks above, so a week means the same thing everywhere in the app. Defaults to the current week; a person can navigate to any earlier week within the active cycle. Each week stays compact:
+Weeks are calendar weeks (Monday–Sunday) — the same definition already used for per-practice weekly targets and streaks above, so a week means the same thing everywhere in the app. Defaults to the current week; a person can navigate to any earlier week within the active cycle. Each week stays compact and visual:
 
-- Sessions completed
-- Time logged
-- Target progress by practice
-- Strongest day
-- Practices that did not reach their weekly target
+- Sessions completed, time logged, and practices that reached their target
+- A seven-day activity rhythm chart
+- Session-count movement versus the preceding week
+- Target and planned-time progress by practice
+- The week's strongest day
 
 It must describe the observed pattern, not make adaptive recommendations.
 
@@ -141,11 +141,12 @@ It must describe the observed pattern, not make adaptive recommendations.
 
 Shows the full-cycle contribution grid alongside:
 
-- Total active days and days with logged effort
-- Practice-level completion and duration totals
-- The strongest week and most consistent practice
+- Active-day ratio across elapsed cycle days
+- Total sessions, logged time, and current/longest active-day runs
+- A recent six-week session trend (or the full trend when fewer weeks exist)
+- Target-normalized consistency and cadence-aware streaks by practice
 
-Once the cycle is complete (naturally or ended early), this filter and Home's completed-cycle state show the same achievement summary.
+The metrics remain descriptive rather than evaluative: target progress is capped at 100%, over-target sessions still remain in the raw totals, and the interface does not assign a score or recommendation. History refreshes from SQLite whenever the tab regains focus so a newly logged session appears immediately.
 
 ## Data model
 

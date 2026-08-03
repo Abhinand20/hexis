@@ -48,6 +48,18 @@ const mockListForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
 
+jest.mock("expo-router", () => {
+  const React = require("react") as typeof import("react");
+  return {
+    ...jest.requireActual("expo-router"),
+    useFocusEffect: (callback: () => void) => {
+      React.useEffect(() => {
+        callback();
+      }, [callback]);
+    },
+  };
+});
+
 jest.mock("../../src/features/cycles/domain/date", () => {
   const actual = jest.requireActual(
     "../../src/features/cycles/domain/date",
@@ -274,9 +286,7 @@ describe("HistoryScreen", () => {
 
     const screen = await render(<HistoryScreen />);
 
-    expect(
-      screen.getByText("History arrives once Hexis has cycles to look back on."),
-    ).toBeTruthy();
+    expect(screen.getByText("Your history starts with a cycle.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Day" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Week" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cycle" })).toBeNull();
@@ -309,10 +319,21 @@ describe("HistoryScreen", () => {
       selected: true,
     });
     expect(screen.getByText("Strength")).toBeTruthy();
-    expect(screen.getByText("Not logged")).toBeTruthy();
+    expect(screen.getByText("Not logged · 0 of 60 min")).toBeTruthy();
     expect(screen.getByText("Read")).toBeTruthy();
-    expect(screen.getByText("Logged")).toBeTruthy();
-    expect(screen.getByText("20 of 20 min")).toBeTruthy();
+    expect(screen.getByText("Logged · 20 of 20 min")).toBeTruthy();
+    expect(screen.getByLabelText("Previous day")).toHaveAccessibilityState({
+      disabled: false,
+    });
+    expect(screen.getByLabelText("Next day")).toHaveAccessibilityState({
+      disabled: true,
+    });
+
+    await user.press(screen.getByLabelText("Previous day"));
+    expect(screen.getByText("Thu, Jul 23")).toBeTruthy();
+    expect(screen.getByLabelText("Next day")).toHaveAccessibilityState({
+      disabled: false,
+    });
   });
 
   it("bounds week navigation to the cycle's overlapping weeks", async () => {
@@ -356,12 +377,15 @@ describe("HistoryScreen", () => {
     expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(30);
     expect(screen.getByText("Summer Focus")).toBeTruthy();
     expect(screen.getByText(/30 active days/i)).toBeTruthy();
+    expect(screen.getByText("Weekly trend")).toBeTruthy();
+    expect(screen.getByText("Practice consistency")).toBeTruthy();
+    expect(screen.getByLabelText(/Strength: .* of cycle targets reached/)).toBeTruthy();
   });
 
-  it("renders nothing while loading and shows an error message on failure", async () => {
+  it("shows a loading state and an error message on failure", async () => {
     mockUseCycleHistory.mockReturnValue({ status: "loading" } satisfies CycleHistoryState);
     const loading = await render(<HistoryScreen />);
-    expect(loading.toJSON()).toBeNull();
+    expect(loading.getByText("Reading your practice ledger")).toBeTruthy();
 
     mockUseCycleHistory.mockReturnValue({
       status: "error",
