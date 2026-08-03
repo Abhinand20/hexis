@@ -91,7 +91,6 @@ export function LogSessionSheet({
     setSubmitError(null);
     try {
       await onUndoLog(latestLog);
-      onDismiss();
     } catch (err) {
       setSubmitError(
         err instanceof Error ? err.message : "Something went wrong. Try again.",

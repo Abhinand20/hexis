@@ -144,9 +144,8 @@ it("shows today's sessions and delegates undoing the latest one", async () => {
   await user.press(screen.getByRole("button", { name: "Undo last log" }));
 
   expect(onUndoLog).toHaveBeenCalledWith(latestLog);
-  await waitFor(() => {
-    expect(onDismiss).toHaveBeenCalled();
-  });
+  expect(onDismiss).not.toHaveBeenCalled();
+  expect(screen.getByText("Today")).toBeTruthy();
 });
 
 it("disables Save while pending and shows a retryable error on failure", async () => {
