@@ -15,7 +15,7 @@ import {
   type CycleAchievementSummary,
 } from "../domain/cycleSummary";
 import { addLocalDays, todayLocalDate } from "../domain/date";
-import type { GoalCadence } from "../domain/types";
+import type { GoalCadence, SessionLog } from "../domain/types";
 
 export type CycleLandingCalendarDay = {
   localDate: string;
@@ -29,6 +29,9 @@ export type CycleLandingGoalRow = {
   streakLabel: string;
   weeklyProgressLabel: string;
   weeklyProgressRatio: number;
+  weeklySessionCount: number;
+  weeklySessionTarget: number;
+  todayLogs: SessionLog[];
   expectedDurationMinutes: number | null;
 };
 
@@ -170,6 +173,11 @@ export function useCycleLanding(
           streakLabel: formatStreakLabel(goal.cadence, streak),
           weeklyProgressLabel: `${progress.sessionCount}/${progress.sessionTarget} this week`,
           weeklyProgressRatio,
+          weeklySessionCount: progress.sessionCount,
+          weeklySessionTarget: progress.sessionTarget,
+          todayLogs: logs
+            .filter((log) => log.cycleGoalId === goal.id && log.localDate === today)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
           expectedDurationMinutes: config.expectedDurationMinutes,
         };
       });

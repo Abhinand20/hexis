@@ -31,6 +31,9 @@ export type LogSessionSheetProps = {
   visible: boolean;
   onDismiss: () => void;
   onLogged?: (log: SessionLog) => void;
+  onUndoLog?: (log: SessionLog) => Promise<void>;
+  todayLogs?: SessionLog[];
+  undoPending?: boolean;
 };
 
 export function LogSessionSheet({
@@ -38,6 +41,9 @@ export function LogSessionSheet({
   visible,
   onDismiss,
   onLogged,
+  onUndoLog,
+  todayLogs = [],
+  undoPending = false,
 }: LogSessionSheetProps) {
   const insets = useSafeAreaInsets();
   const { logSession, isPending } = useLogSession();
@@ -76,8 +82,26 @@ export function LogSessionSheet({
     }
   }
 
+  async function handleUndoLastLog() {
+    const [latestLog] = todayLogs;
+    if (!latestLog || !onUndoLog) {
+      return;
+    }
+
+    setSubmitError(null);
+    try {
+      await onUndoLog(latestLog);
+      onDismiss();
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Something went wrong. Try again.",
+      );
+    }
+  }
+
   const saveLabel =
-    selectedDuration === null ? "Save" : `Save ${selectedDuration} min`;
+    selectedDuration === null ? "Log session" : `Log ${selectedDuration} min`;
+  const [latestLog] = todayLogs;
 
   return (
     <Modal animationType="slide" transparent visible onRequestClose={onDismiss}>
@@ -85,7 +109,41 @@ export function LogSessionSheet({
         <View
           style={[styles.sheet, { paddingBottom: spacing.xxl + insets.bottom }]}
         >
-          <Text style={styles.title}>Log {goal.name}</Text>
+          <Text style={styles.title}>Log details</Text>
+          <Text style={styles.goalName}>{goal.name}</Text>
+
+          {todayLogs.length > 0 ? (
+            <View style={styles.todaySection}>
+              <Text style={styles.sectionLabel}>Today</Text>
+              {todayLogs.map((log) => (
+                <Text key={log.id} style={styles.loggedSession}>
+                  {log.durationMinutes === null ? "Session logged" : `${log.durationMinutes} min`}
+                </Text>
+              ))}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Undo last log"
+                disabled={isPending || undoPending}
+                onPress={() => {
+                  if (!isPending && !undoPending) {
+                    void handleUndoLastLog();
+                  }
+                }}
+                style={[
+                  styles.undoButton,
+                  isPending || undoPending ? styles.primaryButtonDisabled : null,
+                ]}
+              >
+                <Text style={styles.undoButtonText}>
+                  {undoPending ? "Undoing…" : "Undo last log"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <Text style={styles.sectionLabel}>
+            {latestLog ? "Log another session" : "Log a session"}
+          </Text>
 
           <View style={styles.row}>
             {selectableDurations.map((duration) => {
@@ -157,6 +215,35 @@ const styles = StyleSheet.create({
   title: {
     color: colors.ink,
     fontSize: 20,
+    fontWeight: "600",
+  },
+  goalName: {
+    color: colors.mutedInk,
+    fontSize: 15,
+    marginTop: -spacing.sm,
+  },
+  sectionLabel: {
+    color: colors.mutedInk,
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  todaySection: {
+    gap: spacing.xs,
+  },
+  loggedSession: {
+    color: colors.ink,
+    fontSize: 15,
+  },
+  undoButton: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  undoButtonText: {
+    color: "#8B3A3A",
+    fontSize: 15,
     fontWeight: "600",
   },
   row: {

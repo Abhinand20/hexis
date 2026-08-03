@@ -38,6 +38,7 @@ const mockListForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
 const mockCreateSessionLog = jest.fn();
+const mockDeleteSessionLog = jest.fn();
 const mockImpactAsync = jest.fn();
 
 jest.mock("expo-haptics", () => ({
@@ -77,6 +78,7 @@ jest.mock("../../src/features/logging/data/sessionRepository", () => ({
   createSessionRepository: () => ({
     listForCycle: (...args: unknown[]) => mockListSessionLogs(...args),
     create: (...args: unknown[]) => mockCreateSessionLog(...args),
+    deleteById: (...args: unknown[]) => mockDeleteSessionLog(...args),
   }),
 }));
 
@@ -117,10 +119,12 @@ beforeEach(() => {
   mockListRevisions.mockReset();
   mockListSessionLogs.mockReset();
   mockCreateSessionLog.mockReset();
+  mockDeleteSessionLog.mockReset();
   mockImpactAsync.mockReset();
   mockListRevisions.mockResolvedValue([]);
   mockGetMostRecentCycle.mockResolvedValue(null);
   mockImpactAsync.mockResolvedValue(undefined);
+  mockDeleteSessionLog.mockResolvedValue(undefined);
 });
 
 describe("useCycleLanding", () => {
@@ -176,6 +180,9 @@ describe("useCycleLanding", () => {
         streakLabel: "No streak yet",
         weeklyProgressLabel: "2/3 this week",
         weeklyProgressRatio: 2 / 3,
+        weeklySessionCount: 2,
+        weeklySessionTarget: 3,
+        todayLogs: [],
         expectedDurationMinutes: 60,
       },
       {
@@ -184,6 +191,11 @@ describe("useCycleLanding", () => {
         streakLabel: "5 days streak",
         weeklyProgressLabel: "5/7 this week",
         weeklyProgressRatio: 5 / 7,
+        weeklySessionCount: 5,
+        weeklySessionTarget: 7,
+        todayLogs: [
+          logOn("goal-read", "2026-07-24", 20),
+        ],
         expectedDurationMinutes: 20,
       },
     ]);
@@ -373,6 +385,9 @@ describe("CycleLandingScreen", () => {
           streakLabel: "No streak yet",
           weeklyProgressLabel: "2/3 this week",
           weeklyProgressRatio: 2 / 3,
+          weeklySessionCount: 2,
+          weeklySessionTarget: 3,
+          todayLogs: [],
           expectedDurationMinutes: 60,
         },
         {
@@ -381,6 +396,9 @@ describe("CycleLandingScreen", () => {
           streakLabel: "5 days streak",
           weeklyProgressLabel: "5/7 this week",
           weeklyProgressRatio: 5 / 7,
+          weeklySessionCount: 5,
+          weeklySessionTarget: 7,
+          todayLogs: [],
           expectedDurationMinutes: 20,
         },
       ],
@@ -399,12 +417,20 @@ describe("CycleLandingScreen", () => {
     expect(screen.getByText("Strength")).toBeTruthy();
     expect(screen.getByText("No streak yet")).toBeTruthy();
     expect(screen.getByText("2/3 this week")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Log Strength" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "Log Strength: 2 of 3 sessions this week.",
+      }),
+    ).toBeTruthy();
 
     expect(screen.getByText("Read")).toBeTruthy();
     expect(screen.getByText("5 days streak")).toBeTruthy();
     expect(screen.getByText("5/7 this week")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Log Read" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "Log Read: 5 of 7 sessions this week.",
+      }),
+    ).toBeTruthy();
   });
 
   it("shows an empty state with a way to start a cycle when there is no active cycle", async () => {
@@ -500,6 +526,9 @@ describe("CycleLandingScreen", () => {
           streakLabel: "No streak yet",
           weeklyProgressLabel: "2/3 this week",
           weeklyProgressRatio: 2 / 3,
+          weeklySessionCount: 2,
+          weeklySessionTarget: 3,
+          todayLogs: [],
           expectedDurationMinutes: 60,
         },
       ],
@@ -516,7 +545,11 @@ describe("CycleLandingScreen", () => {
     const screen = await render(<CycleLandingScreen />);
     const user = userEvent.setup();
 
-    await user.press(screen.getByRole("button", { name: "Log Strength" }));
+    await user.press(
+      screen.getByRole("button", {
+        name: "Log Strength: 2 of 3 sessions this week.",
+      }),
+    );
 
     await waitFor(() => {
       expect(refresh).toHaveBeenCalledTimes(1);
@@ -529,6 +562,12 @@ describe("CycleLandingScreen", () => {
         durationMinutes: 60,
       }),
     );
+
+    await user.press(screen.getByRole("button", { name: "Undo last log" }));
+    await waitFor(() => {
+      expect(mockDeleteSessionLog).toHaveBeenCalledWith("log-1");
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it("opens log details to choose a duration before saving", async () => {
@@ -549,6 +588,9 @@ describe("CycleLandingScreen", () => {
           streakLabel: "No streak yet",
           weeklyProgressLabel: "2/3 this week",
           weeklyProgressRatio: 2 / 3,
+          weeklySessionCount: 2,
+          weeklySessionTarget: 3,
+          todayLogs: [],
           expectedDurationMinutes: 60,
         },
       ],
@@ -567,7 +609,7 @@ describe("CycleLandingScreen", () => {
 
     await user.press(screen.getByRole("button", { name: "Log details for Strength" }));
     await user.press(screen.getByRole("button", { name: "45 min" }));
-    await user.press(screen.getByRole("button", { name: "Save 45 min" }));
+    await user.press(screen.getByRole("button", { name: "Log 45 min" }));
 
     await waitFor(() => {
       expect(refresh).toHaveBeenCalledTimes(1);

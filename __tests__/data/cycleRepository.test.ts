@@ -117,6 +117,20 @@ describe("cycle, goal, and session repositories", () => {
     ]);
   });
 
+  it("removes a session by id for a mistaken log", async () => {
+    const cycle = await cycleRepository.createCycle(createCycleInput());
+    const [goal] = await goalRepository.listForCycle(cycle.id);
+    const log = await sessionRepository.create({
+      cycleGoalId: goal.id,
+      localDate: "2026-07-02",
+      durationMinutes: 30,
+    });
+
+    await sessionRepository.deleteById(log.id);
+
+    expect(await sessionRepository.listForCycle(cycle.id)).toEqual([]);
+  });
+
   it("ends a cycle early and shortens endDate when localDate is earlier", async () => {
     const cycle = await cycleRepository.createCycle(createCycleInput());
     expect(cycle.endDate).toBe("2026-07-30");
