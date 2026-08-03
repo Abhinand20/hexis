@@ -96,7 +96,7 @@ Two flows are focused tasks rather than destinations, so they do not get their o
 The landing page replaces a traditional “today” checklist. It contains:
 
 1. **Cycle header:** cycle name, `Day X / duration`, days remaining, and one thin overall progress line.
-2. **Cycle calendar:** a compact contribution-style grid with one mark per day. Mark size or intensity reflects how many practices were logged that day; the current day is visually identified.
+2. **Cycle calendar:** a compact contribution-style grid with one mark per day. Mark size or intensity reflects how many practices were logged that day; the current day is visually identified. Past and current days open that date's History Day progress; future days remain unavailable.
 3. **Unified practice list:** no “due today” versus “other” grouping.
 4. **Practice rows:** habit name, streak, weekly progress bar and target total, and a direct **Log** action.
 
@@ -106,11 +106,10 @@ This model avoids falsely marking flexible weekly practices as overdue while kee
 
 The direct action is always **Log**, not a generic checkbox.
 
-1. Tap **Log** beside a practice.
-2. A compact sheet opens with quick duration choices: 15, 30, 45, 60, or 90 minutes.
-3. Select the actual duration or accept the relevant default.
-4. Save the session.
-5. Return to the landing page with refreshed progress, calendar intensity, and streak.
+1. Tap **Log** beside a practice to save a session immediately with its expected duration (or no duration for a count-only practice).
+2. Tap **Details** instead to choose a quick duration before saving.
+3. A session records the actual current time at save; version one does not offer a date/time picker, notes, or post-save edits.
+4. Return to the landing page with refreshed progress, calendar intensity, and streak.
 
 Practices without a duration target may still log a session with no duration. The app should never require an in-app timer.
 
@@ -124,7 +123,7 @@ Practices without a duration target may still log a session with no duration. Th
 
 ### History: Day filter
 
-For a selected local date, shows each configured practice's status that day — logged or not, and minutes logged versus its expected duration when applicable.
+For a selected local date, shows total sessions and minutes, each configured practice's status — logged or not, and minutes logged versus its expected duration when applicable — and a chronological, read-only list of that day's sessions with practice name, actual time, and duration. Calendar taps open this filter for the selected past/current day, and bounded Previous/Next controls move between dates in the current cycle.
 
 ### History: Week filter
 
@@ -155,7 +154,7 @@ Once the cycle is complete (naturally or ended early), this filter and Home's co
 | `Cycle` | A bounded focus period | id, name, startDate, durationDays, endDate, status |
 | `CycleGoal` | A practice captured in a cycle | id, cycleId, name, cadence, weeklyTargetCount, expectedDurationMinutes |
 | `GoalRevision` | A forward-only update to a cycle goal | id, cycleGoalId, effectiveDate, changed target/configuration fields |
-| `SessionLog` | An immutable completed session | id, cycleGoalId, localDate, startedAt, durationMinutes, createdAt |
+| `SessionLog` | An immutable completed session | id, cycleGoalId, localDate, startedAt (captured automatically at save), durationMinutes, createdAt |
 | `ReminderSettings` | Optional app-level local reminder | enabled, localTime, notificationIdentifier |
 
 Progress is derived from logs and effective goal configuration. It is not stored as a duplicate aggregate.

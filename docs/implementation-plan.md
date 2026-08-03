@@ -293,6 +293,7 @@ export type SessionLog = {
   id: string;
   cycleGoalId: string;
   localDate: string;
+  startedAt: string;
   durationMinutes: number | null;
   createdAt: string;
 };
@@ -656,11 +657,10 @@ git commit -m "feat: add active cycle landing page"
 
 **Behavior:**
 
-- Tapping **Log** opens an elevated sheet.
-- Quick duration choices are 15, 30, 45, 60, and 90 minutes.
-- The goal’s expected duration is selected initially when it matches an available choice.
-- Count-only practices allow saving with no duration.
-- Saving creates exactly one immutable `SessionLog`, refreshes landing data, and closes the sheet.
+- Tapping **Log** saves exactly one session immediately with the goal's expected duration, or no duration for a count-only practice.
+- **Details** opens an elevated sheet before saving; it offers 15, 30, 45, 60, and 90 minute choices and includes any non-standard expected duration as a selected option.
+- A pending-state lock prevents rapid taps from creating duplicate sessions. Failures leave the user on the current screen with a retryable inline error.
+- Every successful save refreshes landing data. Details closes after its successful save.
 
 - [ ] **Step 1: Write failing quick-duration tests.**
 
@@ -674,9 +674,9 @@ it("preselects the expected duration and saves the actual selection", async () =
 });
 ```
 
-- [ ] **Step 2: Implement one submission path.**
+- [ ] **Step 2: Implement the one-tap default and Details path.**
 
-Disable Save while the repository call is pending. On failure, preserve the selected duration and show a retryable inline error. On success, invalidate active-cycle query state before dismissing the sheet.
+Keep the immediate default and the duration-selection path separate but route both through the same session repository. Disable each action while its save is pending; on failure, preserve Details' selected duration and show a retryable inline error.
 
 - [ ] **Step 3: Run logging tests and commit.**
 
@@ -1021,97 +1021,108 @@ npx expo prebuild --platform ios
 npx expo run:ios --device
 ```
 
-## Phase 6 — Accessible interaction integrity
+## Phase 6 — Calendar day progress
 
-> This phase closes the accessibility gap found in the implemented UI: contribution-calendar cells are informational but currently exposed as buttons, and several compact controls do not provide a 44 × 44 pt touch target. It deliberately does not add date selection or cross-cycle history; calendar cells stay read-only until a future date-detail feature exists.
+> This phase makes the contribution calendar an entry point into the existing History Day screen. It follows the grilling decisions: past and current days open that selected day; future days remain unavailable; the Day screen has a summary and a chronological, read-only session list; every session records the actual time it was logged; and there are no notes, backfilling, or post-save editing controls in this milestone.
 
-### Task 15: Correct contribution-calendar semantics
+### Task 15: Persist each session's actual start time
+
+**Files:**
+- Modify: `src/db/schema.ts` (add `SCHEMA_V3`)
+- Modify: `src/db/migrations.ts`
+- Modify: `src/features/cycles/domain/types.ts`
+- Modify: `src/features/cycles/domain/date.ts`
+- Modify: `src/features/logging/data/sessionRepository.ts`
+- Modify: `src/features/logging/hooks/useLogSession.ts`
+- Modify: `src/features/cycles/components/GoalRow.tsx`
+- Modify: `src/features/logging/components/LogSessionSheet.tsx`
+- Test: `__tests__/db/migrations.test.ts`
+- Test: `__tests__/data/cycleRepository.test.ts`
+- Test: `__tests__/components/cycleLanding.test.tsx`
+- Test: `__tests__/components/logSessionSheet.test.tsx`
+
+**Behavior:**
+
+- Add an immutable `startedAt` ISO timestamp to every `SessionLog`. For a new session, capture one current instant and derive both `startedAt` and `localDate` from it, so a midnight boundary cannot split the time and date across different days.
+- Add migration V3 to backfill existing rows' `started_at` from `created_at`; all new writes persist both values. Retain `createdAt` as the record-creation timestamp.
+- One-tap Log and Details both use the current actual time automatically. Details remains duration-only: this milestone adds no time/date picker, notes, backfill, or post-save editing.
+
+- [ ] **Step 1: Write failing migration and repository tests.**
+
+Seed a version-2 database with an existing session, migrate it, and assert `started_at` equals the original `created_at`. Freeze time for a new repository write and assert the returned and persisted `startedAt` and `localDate` come from the same instant.
+
+- [ ] **Step 2: Add migration V3 and thread `startedAt` through the session model.**
+
+Use a single clock read for each session creation. Keep the new timestamp database-owned rather than adding a user-facing time field to either logging path.
+
+- [ ] **Step 3: Update logging mocks/tests and commit.**
+
+```bash
+npx jest __tests__/db/migrations.test.ts __tests__/data/cycleRepository.test.ts __tests__/components/cycleLanding.test.tsx __tests__/components/logSessionSheet.test.tsx --runInBand
+npx tsc --noEmit
+git add src/db src/features/cycles src/features/logging __tests__
+git commit -m "feat: record actual session start times"
+```
+
+### Task 16: Open selected calendar days in History
 
 **Files:**
 - Modify: `src/features/cycles/components/CycleCalendar.tsx`
-- Modify: `__tests__/components/cycleLanding.test.tsx`
-- Modify: `__tests__/components/cycleHistory.test.tsx`
+- Modify: `src/features/cycles/domain/cycleSummary.ts`
+- Modify: `src/features/cycles/hooks/useCycleHistory.ts`
+- Modify: `app/(tabs)/index.tsx`, `app/(tabs)/history.tsx`
+- Test: `__tests__/domain/cycleSummary.test.ts`
+- Test: `__tests__/components/cycleLanding.test.tsx`
+- Test: `__tests__/components/cycleHistory.test.tsx`
 
 **Behavior:**
 
-- A calendar cell remains visually compact and descriptive, but is no longer announced as a tappable button because pressing it has no effect.
-- VoiceOver still receives the cycle-day position, whether it is today, the local date, and the day's effort intensity. It must not imply an unavailable action.
-- Do not add an `onPress` placeholder or a dead destination. If date-level history becomes a future feature, introduce a real `Pressable` and destination in that feature's plan instead.
+- Home's calendar and History's Cycle calendar make dates from the cycle start through the active cycle's current local date—or through a completed cycle's end date—interactive. Selecting one navigates to `/history` with `filter=day` and that date as route parameters.
+- Future dates remain visual calendar cells only. They must not navigate or masquerade as disabled day-progress controls.
+- History consumes and validates the route parameters, selects the Day filter, and renders the requested day. Outside a calendar link, Day continues to default to today (bounded to the current cycle).
+- The Day view has a date heading, total session count, total minutes, the existing per-practice status summary, and a chronological session list. Every session row shows practice name, actual start time, and duration when present. It is read-only; there are no notes, edit, delete, or add controls.
+- Previous/Next day controls are bounded by the cycle start and the same maximum interactive date as the calendar. Their navigation updates the Day route parameters so the selected date is shareable and survives tab changes.
 
-- [ ] **Step 1: Write failing component tests for read-only calendar semantics.**
+- [ ] **Step 1: Write failing selector and route-composition tests.**
 
-Assert that calendar cells retain their descriptive accessibility label/hint but are not returned by a button-role query. Cover both Home and History's reuse of the component.
+Extend `buildDaySummary` tests to assert totals and session entries sorted by `startedAt` ascending. Add screen tests for Home and Cycle-calendar taps, route-selected Day state, future-date non-navigation, and the bounded day pager.
 
-- [ ] **Step 2: Remove the false button semantics.**
+- [ ] **Step 2: Add calendar navigation and the richer Day selector/view.**
 
-Keep `accessible` and the existing descriptive label/hint on each cell. Replace the `button` role with a non-interactive semantic (or omit the role if that produces the correct iOS announcement); do not change the calendar's progress calculation or visual intensity scale.
+Give `CycleCalendar` an explicit day-selection callback plus a maximum interactive date. Route both calendar callers into the existing History tab, rather than creating a second day-detail screen. Have `buildDaySummary` join session logs to the effective goal name for its date and sort them chronologically; keep presentation logic in History.
 
-- [ ] **Step 3: Run targeted tests and commit.**
+- [ ] **Step 3: Implement the bounded Day pager.**
 
-```bash
-npx jest __tests__/components/cycleLanding.test.tsx __tests__/components/cycleHistory.test.tsx --runInBand
-npx tsc --noEmit
-git add src/features/cycles/components/CycleCalendar.tsx __tests__/components
-git commit -m "fix: expose contribution calendar as read-only status"
-```
+Use the selected local date as the pager source of truth. Disable or omit Previous/Next beyond the start and maximum date; never allow paging into a future day.
 
-### Task 16: Standardize touch targets and control states
-
-**Files:**
-- Modify: `src/design/tokens.ts` (add one shared 44 pt touch-target token)
-- Modify: `app/(tabs)/index.tsx`, `app/(tabs)/history.tsx`, `app/(tabs)/settings/index.tsx`
-- Modify: `app/setup/_layout.tsx`, `app/setup/duration.tsx`, `app/setup/practices.tsx`, `app/setup/review.tsx`
-- Modify: `app/cycles/[cycleId]/edit-goal/[goalId].tsx`
-- Modify: `src/features/cycles/components/GoalRow.tsx`, `src/features/goals/components/GoalEditor.tsx`, `src/features/goals/components/GoalTemplateList.tsx`, `src/features/logging/components/LogSessionSheet.tsx`
-- Test: `__tests__/components/cycleLanding.test.tsx`, `__tests__/components/cycleHistory.test.tsx`, `__tests__/components/cycleSetupNavigation.test.tsx`, `__tests__/components/goalEditor.test.tsx`, `__tests__/components/logSessionSheet.test.tsx`, `__tests__/components/tabShell.test.tsx`
-
-**Behavior:**
-
-- Every `Pressable`, compact action, filter, pager control, duration chip, and settings-row action has an effective touch area of at least 44 × 44 pt. Use a shared token and real minimum dimensions by default; reserve `hitSlop` for a non-overlapping edge case only.
-- Preserve legible grouping when controls appear side by side. A larger target may make a row taller or wrap its controls; it must never make adjacent actions overlap or make their labels ambiguous.
-- Keep semantic roles, selected/disabled state, and descriptive labels intact. A disabled control must be both visually distinct and announced as disabled.
-- Do not enlarge read-only calendar cells under this task: they are status, not touch targets after Task 15.
-
-- [ ] **Step 1: Add the shared touch-target token and inventory every interactive control.**
-
-Start with all current `Pressable` and `Switch` uses in Home, History, Settings, setup, goal editing, template selection, and session logging. Record any native control whose system-provided target already meets the requirement rather than applying a redundant wrapper.
-
-- [ ] **Step 2: Apply the token and reflow the compact controls.**
-
-Prioritize History's Day/Week/Cycle filter and pager, logging duration chips plus Cancel/Save, setup duration choices, goal cadence/template controls, and text-only Settings actions. Preserve the new one-tap Log and Details flow without reducing either control below 44 pt.
-
-- [ ] **Step 3: Add focused regression tests.**
-
-Extend existing component tests to cover the critical controls' labels, selected/disabled states, and shared minimum target style. Do not turn the test suite into brittle pixel snapshots; test the token-driven contract and interaction behavior.
-
-- [ ] **Step 4: Run the affected component suite and commit.**
+- [ ] **Step 4: Run the focused suite and commit.**
 
 ```bash
-npx jest __tests__/components/cycleLanding.test.tsx __tests__/components/cycleHistory.test.tsx __tests__/components/cycleSetupNavigation.test.tsx __tests__/components/goalEditor.test.tsx __tests__/components/logSessionSheet.test.tsx __tests__/components/tabShell.test.tsx --runInBand
+npx jest __tests__/domain/cycleSummary.test.ts __tests__/components/cycleLanding.test.tsx __tests__/components/cycleHistory.test.tsx --runInBand
 npx tsc --noEmit
-git add app src/design src/features __tests__/components
-git commit -m "feat: standardize accessible touch targets"
+git add "app/(tabs)" src/features/cycles __tests__/domain __tests__/components
+git commit -m "feat: open calendar days in history"
 ```
 
-### Task 17: Validate VoiceOver and Dynamic Type on device
+### Task 17: Validate calendar day progress and document it
 
 **Files:**
-- Modify: `docs/release-checklist.md` (append the accessibility test cases)
+- Modify: `docs/project-overview.md`
+- Modify: `docs/release-checklist.md` (append the calendar day-progress cases)
 - Modify: `progress/YYYY-MM-DD.md` (record the physical-device result)
 
 **Behavior:**
 
-- VoiceOver announces each control once, with its true role, useful label, selected/disabled state where applicable, and no false actions on contribution-calendar cells.
-- At the largest supported Dynamic Type size, Home, History, Settings, setup, goal editing, and the logging sheet remain readable, scrollable, and operable. Side-by-side controls may wrap but must retain their full labels and hit areas.
-- With Reduce Motion enabled, opening/dismissing the logging sheet and navigating the app remain comfortable; the app must not rely on motion to convey logging or selection state.
+- The product overview describes one-tap logging as recording the current actual start time, and specifies the calendar-to-Day-Progress path and its read-only chronological session list.
+- A normal device pass confirms Home and History calendar taps open the right date, future dates are unavailable, the Day pager respects bounds, and session time/duration order matches the saved data.
 
-- [ ] **Step 1: Add automated guardrails.**
+- [ ] **Step 1: Run the complete automated suite.**
 
-Run the complete Jest suite and TypeScript check. Confirm calendar component tests reject button semantics, and target-size tests cover the compact controls identified in Task 16.
+Confirm schema migration/backfill, actual start-time persistence, day-summary ordering, route selection, and pager bounds are included in the full Jest run.
 
-- [ ] **Step 2: Run the physical-device accessibility checklist.**
+- [ ] **Step 2: Run the physical-device calendar-flow checklist.**
 
-On the signed iPhone build, test VoiceOver traversal on Home, History, Settings, setup, goal editing, and the logging sheet; test default and largest Dynamic Type; test with Reduce Motion enabled; and manually confirm every interactive control is comfortably tappable. Include a Home and History contribution calendar in the VoiceOver pass.
+On the signed iPhone build, log two sessions for the same day; check the Day view summary and chronological rows from both calendars; use Previous/Next at each bound; and verify a future date does not open the Day view.
 
 - [ ] **Step 3: Record the result, update M7, and commit.**
 
@@ -1120,7 +1131,7 @@ npx jest --runInBand
 npx tsc --noEmit
 npx expo-doctor
 git add docs progress
-git commit -m "docs: record accessibility validation"
+git commit -m "docs: record calendar day-progress validation"
 ```
 
 ## Verification matrix
@@ -1132,8 +1143,8 @@ git commit -m "docs: record accessibility validation"
 | Forward-only edits | Goal revision test preserves earlier logs and uses today as effective date |
 | Fast direct logging | Sheet test saves a selected duration in one repository write |
 | Active-cycle context | Landing test renders `Day X / duration`, calendar cells, and all goals |
-| Read-only contribution calendar | Component tests assert descriptive labels/hints without a false button role; device VoiceOver announces status rather than an unavailable action |
-| Minimum touch targets | Shared 44 pt token is applied to every interactive control; targeted component tests cover compact actions and a device pass confirms they remain tappable |
+| Actual session times | Migration test backfills `startedAt`; repository test persists one current instant as both the session's local date and actual start time |
+| Calendar day progress | Home and History calendar tests navigate a past/current day into History Day; selector tests assert chronological rows; pager tests enforce cycle-date bounds |
 | Local-only persistence | Repository integration test survives reinitialization without a network dependency |
 | Reminder is optional | Permission-denied test keeps tracking usable |
 | Glass fallback | `GlassSurface` test renders an ordinary surface when unavailable |
