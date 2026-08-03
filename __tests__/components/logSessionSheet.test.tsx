@@ -66,6 +66,29 @@ it("preselects the expected duration and saves the actual selection", async () =
   });
 });
 
+it("adds a non-standard expected duration to the selectable defaults", async () => {
+  const onDismiss = jest.fn();
+  const screen = await render(
+    <LogSessionSheet
+      goal={{ ...strengthGoal, expectedDurationMinutes: 20 }}
+      visible
+      onDismiss={onDismiss}
+    />,
+  );
+  const user = userEvent.setup();
+
+  expect(screen.getByRole("button", { name: "20 min" })).toBeSelected();
+
+  await user.press(screen.getByRole("button", { name: "Save 20 min" }));
+
+  expect(createSessionLog).toHaveBeenCalledWith(
+    expect.objectContaining({ cycleGoalId: "goal-strength", durationMinutes: 20 }),
+  );
+  await waitFor(() => {
+    expect(onDismiss).toHaveBeenCalled();
+  });
+});
+
 it("allows saving with no duration for a count-only save", async () => {
   const onDismiss = jest.fn();
   const screen = await render(

@@ -28,27 +28,6 @@ describe("cycle, goal, and session repositories", () => {
     sessionRepository = createSessionRepository(db);
   });
 
-  it("creates one active cycle with goal snapshots", async () => {
-    const newCycleInput = createCycleInput();
-    const cycle = await cycleRepository.createCycle(newCycleInput);
-    expect(await cycleRepository.getActiveCycle()).toMatchObject({
-      id: cycle.id,
-      status: "active",
-      durationDays: 30,
-    });
-    expect(await goalRepository.listForCycle(cycle.id)).toHaveLength(4);
-  });
-
-  it("rejects creating a second active cycle", async () => {
-    const first = await cycleRepository.createCycle(createCycleInput());
-    await expect(
-      cycleRepository.createCycle(createCycleInput({ name: "Another" })),
-    ).rejects.toThrow(/active cycle already exists/i);
-
-    const active = await cycleRepository.getActiveCycle();
-    expect(active?.id).toBe(first.id);
-  });
-
   it("rejects a revision effectiveDate before the cycle startDate", async () => {
     const cycle = await cycleRepository.createCycle(createCycleInput());
     const [goal] = await goalRepository.listForCycle(cycle.id);

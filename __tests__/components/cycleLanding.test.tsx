@@ -38,6 +38,12 @@ const mockListForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
 const mockCreateSessionLog = jest.fn();
+const mockImpactAsync = jest.fn();
+
+jest.mock("expo-haptics", () => ({
+  ImpactFeedbackStyle: { Light: "light" },
+  impactAsync: (...args: unknown[]) => mockImpactAsync(...args),
+}));
 
 // Stable `db` reference — a fresh `{}` each render would recreate `load` in
 // useCycleLanding (deps include `db`) and loop forever under RNTL's async act.
@@ -111,8 +117,10 @@ beforeEach(() => {
   mockListRevisions.mockReset();
   mockListSessionLogs.mockReset();
   mockCreateSessionLog.mockReset();
+  mockImpactAsync.mockReset();
   mockListRevisions.mockResolvedValue([]);
   mockGetMostRecentCycle.mockResolvedValue(null);
+  mockImpactAsync.mockResolvedValue(undefined);
 });
 
 describe("useCycleLanding", () => {
@@ -474,7 +482,7 @@ describe("CycleLandingScreen", () => {
     });
   });
 
-  it("opens the log sheet from a goal row, saves a session, and refreshes the landing data", async () => {
+  it("logs the expected duration immediately and refreshes the landing data", async () => {
     const refresh = jest.fn();
     mockUseCycleLanding.mockReturnValue({
       status: "ready",
@@ -509,10 +517,66 @@ describe("CycleLandingScreen", () => {
     const user = userEvent.setup();
 
     await user.press(screen.getByRole("button", { name: "Log Strength" }));
-    await user.press(screen.getByRole("button", { name: "Save 60 min" }));
 
     await waitFor(() => {
       expect(refresh).toHaveBeenCalledTimes(1);
     });
+    expect(screen.getByText("Logged · 60 min")).toBeTruthy();
+    expect(mockImpactAsync).toHaveBeenCalledWith("light");
+    expect(mockCreateSessionLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cycleGoalId: "goal-strength",
+        durationMinutes: 60,
+      }),
+    );
+  });
+
+  it("opens log details to choose a duration before saving", async () => {
+    const refresh = jest.fn();
+    mockUseCycleLanding.mockReturnValue({
+      status: "ready",
+      header: {
+        cycleName: "Summer Focus",
+        dayLabel: "Day 24 / 30",
+        daysRemainingLabel: "6 days remaining",
+        overallProgressRatio: 5 / 24,
+      },
+      calendarDays: buildCalendarDays(),
+      goals: [
+        {
+          goalId: "goal-strength",
+          name: "Strength",
+          streakLabel: "No streak yet",
+          weeklyProgressLabel: "2/3 this week",
+          weeklyProgressRatio: 2 / 3,
+          expectedDurationMinutes: 60,
+        },
+      ],
+      refresh,
+    } satisfies CycleLandingState);
+    mockCreateSessionLog.mockResolvedValue({
+      id: "log-1",
+      cycleGoalId: "goal-strength",
+      localDate: "2026-07-25",
+      durationMinutes: 45,
+      createdAt: "2026-07-25T00:00:00.000Z",
+    });
+
+    const screen = await render(<CycleLandingScreen />);
+    const user = userEvent.setup();
+
+    await user.press(screen.getByRole("button", { name: "Log details for Strength" }));
+    await user.press(screen.getByRole("button", { name: "45 min" }));
+    await user.press(screen.getByRole("button", { name: "Save 45 min" }));
+
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalledTimes(1);
+    });
+    expect(mockCreateSessionLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cycleGoalId: "goal-strength",
+        durationMinutes: 45,
+      }),
+    );
   });
 });

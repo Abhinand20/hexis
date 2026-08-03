@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,12 +9,24 @@ import { CycleHeader } from "../../src/features/cycles/components/CycleHeader";
 import { CycleSummaryCard } from "../../src/features/cycles/components/CycleSummaryCard";
 import { GoalRow } from "../../src/features/cycles/components/GoalRow";
 import { todayLocalDate } from "../../src/features/cycles/domain/date";
+import type { SessionLog } from "../../src/features/cycles/domain/types";
 import { useCycleLanding } from "../../src/features/cycles/hooks/useCycleLanding";
 
 export default function CycleLandingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [focusVersion, setFocusVersion] = useState(0);
+  const [quickLogConfirmation, setQuickLogConfirmation] = useState<string | null>(null);
+  const confirmationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (confirmationTimeout.current !== null) {
+        clearTimeout(confirmationTimeout.current);
+      }
+    },
+    [],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -23,6 +35,20 @@ export default function CycleLandingScreen() {
   );
 
   const state = useCycleLanding(todayLocalDate(), focusVersion);
+
+  const showQuickLogConfirmation = useCallback((log: SessionLog) => {
+    if (confirmationTimeout.current !== null) {
+      clearTimeout(confirmationTimeout.current);
+    }
+
+    setQuickLogConfirmation(
+      log.durationMinutes === null ? "Logged" : `Logged · ${log.durationMinutes} min`,
+    );
+    confirmationTimeout.current = setTimeout(() => {
+      setQuickLogConfirmation(null);
+      confirmationTimeout.current = null;
+    }, 2500);
+  }, []);
 
   if (state.status === "loading") {
     return null;
@@ -85,40 +111,50 @@ export default function CycleLandingScreen() {
   }
 
   return (
-    <FlatList
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
-      ]}
-      data={state.goals}
-      keyExtractor={(item) => item.goalId}
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
-      renderItem={({ item }) => (
-        <GoalRow
-          model={item}
-          onLogged={() => {
-            void state.refresh();
-          }}
-        />
-      )}
-      ListHeaderComponent={
-        <View style={styles.header}>
-          <CycleHeader
-            cycleName={state.header.cycleName}
-            dayLabel={state.header.dayLabel}
-            daysRemainingLabel={state.header.daysRemainingLabel}
-            overallProgressRatio={state.header.overallProgressRatio}
+    <View style={styles.screen}>
+      <FlatList
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+        ]}
+        data={state.goals}
+        keyExtractor={(item) => item.goalId}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        renderItem={({ item }) => (
+          <GoalRow
+            model={item}
+            onQuickLogged={showQuickLogConfirmation}
+            onLogged={() => {
+              void state.refresh();
+            }}
           />
-          <CycleCalendar
-            durationDays={state.calendarDays.length}
-            todayIndex={state.calendarDays.findIndex((day) => day.isToday)}
-            days={state.calendarDays}
-          />
-          <Text style={styles.sectionLabel}>Practices</Text>
+        )}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <CycleHeader
+              cycleName={state.header.cycleName}
+              dayLabel={state.header.dayLabel}
+              daysRemainingLabel={state.header.daysRemainingLabel}
+              overallProgressRatio={state.header.overallProgressRatio}
+            />
+            <CycleCalendar
+              durationDays={state.calendarDays.length}
+              todayIndex={state.calendarDays.findIndex((day) => day.isToday)}
+              days={state.calendarDays}
+            />
+            <Text style={styles.sectionLabel}>Practices</Text>
+          </View>
+        }
+      />
+
+      {quickLogConfirmation ? (
+        <View pointerEvents="none" style={[styles.confirmation, { bottom: insets.bottom + 72 }]}>
+          <Text accessibilityLiveRegion="polite" style={styles.confirmationText}>
+            {quickLogConfirmation}
+          </Text>
         </View>
-      }
-    />
+      ) : null}
+    </View>
   );
 }
 
@@ -139,6 +175,19 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.xl,
+  },
+  confirmation: {
+    alignSelf: "center",
+    backgroundColor: colors.ink,
+    borderRadius: 999,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    position: "absolute",
+  },
+  confirmationText: {
+    color: colors.inkOnDark,
+    fontSize: 15,
+    fontWeight: "600",
   },
   header: {
     gap: spacing.lg,

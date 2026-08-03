@@ -1021,6 +1021,108 @@ npx expo prebuild --platform ios
 npx expo run:ios --device
 ```
 
+## Phase 6 — Accessible interaction integrity
+
+> This phase closes the accessibility gap found in the implemented UI: contribution-calendar cells are informational but currently exposed as buttons, and several compact controls do not provide a 44 × 44 pt touch target. It deliberately does not add date selection or cross-cycle history; calendar cells stay read-only until a future date-detail feature exists.
+
+### Task 15: Correct contribution-calendar semantics
+
+**Files:**
+- Modify: `src/features/cycles/components/CycleCalendar.tsx`
+- Modify: `__tests__/components/cycleLanding.test.tsx`
+- Modify: `__tests__/components/cycleHistory.test.tsx`
+
+**Behavior:**
+
+- A calendar cell remains visually compact and descriptive, but is no longer announced as a tappable button because pressing it has no effect.
+- VoiceOver still receives the cycle-day position, whether it is today, the local date, and the day's effort intensity. It must not imply an unavailable action.
+- Do not add an `onPress` placeholder or a dead destination. If date-level history becomes a future feature, introduce a real `Pressable` and destination in that feature's plan instead.
+
+- [ ] **Step 1: Write failing component tests for read-only calendar semantics.**
+
+Assert that calendar cells retain their descriptive accessibility label/hint but are not returned by a button-role query. Cover both Home and History's reuse of the component.
+
+- [ ] **Step 2: Remove the false button semantics.**
+
+Keep `accessible` and the existing descriptive label/hint on each cell. Replace the `button` role with a non-interactive semantic (or omit the role if that produces the correct iOS announcement); do not change the calendar's progress calculation or visual intensity scale.
+
+- [ ] **Step 3: Run targeted tests and commit.**
+
+```bash
+npx jest __tests__/components/cycleLanding.test.tsx __tests__/components/cycleHistory.test.tsx --runInBand
+npx tsc --noEmit
+git add src/features/cycles/components/CycleCalendar.tsx __tests__/components
+git commit -m "fix: expose contribution calendar as read-only status"
+```
+
+### Task 16: Standardize touch targets and control states
+
+**Files:**
+- Modify: `src/design/tokens.ts` (add one shared 44 pt touch-target token)
+- Modify: `app/(tabs)/index.tsx`, `app/(tabs)/history.tsx`, `app/(tabs)/settings/index.tsx`
+- Modify: `app/setup/_layout.tsx`, `app/setup/duration.tsx`, `app/setup/practices.tsx`, `app/setup/review.tsx`
+- Modify: `app/cycles/[cycleId]/edit-goal/[goalId].tsx`
+- Modify: `src/features/cycles/components/GoalRow.tsx`, `src/features/goals/components/GoalEditor.tsx`, `src/features/goals/components/GoalTemplateList.tsx`, `src/features/logging/components/LogSessionSheet.tsx`
+- Test: `__tests__/components/cycleLanding.test.tsx`, `__tests__/components/cycleHistory.test.tsx`, `__tests__/components/cycleSetupNavigation.test.tsx`, `__tests__/components/goalEditor.test.tsx`, `__tests__/components/logSessionSheet.test.tsx`, `__tests__/components/tabShell.test.tsx`
+
+**Behavior:**
+
+- Every `Pressable`, compact action, filter, pager control, duration chip, and settings-row action has an effective touch area of at least 44 × 44 pt. Use a shared token and real minimum dimensions by default; reserve `hitSlop` for a non-overlapping edge case only.
+- Preserve legible grouping when controls appear side by side. A larger target may make a row taller or wrap its controls; it must never make adjacent actions overlap or make their labels ambiguous.
+- Keep semantic roles, selected/disabled state, and descriptive labels intact. A disabled control must be both visually distinct and announced as disabled.
+- Do not enlarge read-only calendar cells under this task: they are status, not touch targets after Task 15.
+
+- [ ] **Step 1: Add the shared touch-target token and inventory every interactive control.**
+
+Start with all current `Pressable` and `Switch` uses in Home, History, Settings, setup, goal editing, template selection, and session logging. Record any native control whose system-provided target already meets the requirement rather than applying a redundant wrapper.
+
+- [ ] **Step 2: Apply the token and reflow the compact controls.**
+
+Prioritize History's Day/Week/Cycle filter and pager, logging duration chips plus Cancel/Save, setup duration choices, goal cadence/template controls, and text-only Settings actions. Preserve the new one-tap Log and Details flow without reducing either control below 44 pt.
+
+- [ ] **Step 3: Add focused regression tests.**
+
+Extend existing component tests to cover the critical controls' labels, selected/disabled states, and shared minimum target style. Do not turn the test suite into brittle pixel snapshots; test the token-driven contract and interaction behavior.
+
+- [ ] **Step 4: Run the affected component suite and commit.**
+
+```bash
+npx jest __tests__/components/cycleLanding.test.tsx __tests__/components/cycleHistory.test.tsx __tests__/components/cycleSetupNavigation.test.tsx __tests__/components/goalEditor.test.tsx __tests__/components/logSessionSheet.test.tsx __tests__/components/tabShell.test.tsx --runInBand
+npx tsc --noEmit
+git add app src/design src/features __tests__/components
+git commit -m "feat: standardize accessible touch targets"
+```
+
+### Task 17: Validate VoiceOver and Dynamic Type on device
+
+**Files:**
+- Modify: `docs/release-checklist.md` (append the accessibility test cases)
+- Modify: `progress/YYYY-MM-DD.md` (record the physical-device result)
+
+**Behavior:**
+
+- VoiceOver announces each control once, with its true role, useful label, selected/disabled state where applicable, and no false actions on contribution-calendar cells.
+- At the largest supported Dynamic Type size, Home, History, Settings, setup, goal editing, and the logging sheet remain readable, scrollable, and operable. Side-by-side controls may wrap but must retain their full labels and hit areas.
+- With Reduce Motion enabled, opening/dismissing the logging sheet and navigating the app remain comfortable; the app must not rely on motion to convey logging or selection state.
+
+- [ ] **Step 1: Add automated guardrails.**
+
+Run the complete Jest suite and TypeScript check. Confirm calendar component tests reject button semantics, and target-size tests cover the compact controls identified in Task 16.
+
+- [ ] **Step 2: Run the physical-device accessibility checklist.**
+
+On the signed iPhone build, test VoiceOver traversal on Home, History, Settings, setup, goal editing, and the logging sheet; test default and largest Dynamic Type; test with Reduce Motion enabled; and manually confirm every interactive control is comfortably tappable. Include a Home and History contribution calendar in the VoiceOver pass.
+
+- [ ] **Step 3: Record the result, update M7, and commit.**
+
+```bash
+npx jest --runInBand
+npx tsc --noEmit
+npx expo-doctor
+git add docs progress
+git commit -m "docs: record accessibility validation"
+```
+
 ## Verification matrix
 
 | Requirement | Verification |
@@ -1030,7 +1132,8 @@ npx expo run:ios --device
 | Forward-only edits | Goal revision test preserves earlier logs and uses today as effective date |
 | Fast direct logging | Sheet test saves a selected duration in one repository write |
 | Active-cycle context | Landing test renders `Day X / duration`, calendar cells, and all goals |
-| Accessible calendar | Component test asserts descriptive accessibility labels for every cell |
+| Read-only contribution calendar | Component tests assert descriptive labels/hints without a false button role; device VoiceOver announces status rather than an unavailable action |
+| Minimum touch targets | Shared 44 pt token is applied to every interactive control; targeted component tests cover compact actions and a device pass confirms they remain tappable |
 | Local-only persistence | Repository integration test survives reinitialization without a network dependency |
 | Reminder is optional | Permission-denied test keeps tracking usable |
 | Glass fallback | `GlassSurface` test renders an ordinary surface when unavailable |
@@ -1051,4 +1154,3 @@ Create a separate plan only after version one is stable for any of these indepen
 - Per-practice notifications
 - Cross-cycle history browsing (v1 keeps History scoped to the current cycle only)
 - TestFlight/App Store distribution (requires enrolling in the paid Apple Developer Program)
-

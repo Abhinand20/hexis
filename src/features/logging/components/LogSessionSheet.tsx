@@ -9,6 +9,17 @@ import { useLogSession } from "../hooks/useLogSession";
 
 const QUICK_DURATIONS = [15, 30, 45, 60, 90] as const;
 
+function durationOptions(expectedDurationMinutes: number | null): number[] {
+  if (
+    expectedDurationMinutes === null ||
+    (QUICK_DURATIONS as readonly number[]).includes(expectedDurationMinutes)
+  ) {
+    return [...QUICK_DURATIONS];
+  }
+
+  return [...QUICK_DURATIONS, expectedDurationMinutes].sort((a, b) => a - b);
+}
+
 export type LogSessionGoal = {
   id: string;
   name: string;
@@ -31,11 +42,8 @@ export function LogSessionSheet({
   const insets = useSafeAreaInsets();
   const { logSession, isPending } = useLogSession();
 
-  const initialDuration =
-    goal.expectedDurationMinutes !== null &&
-    (QUICK_DURATIONS as readonly number[]).includes(goal.expectedDurationMinutes)
-      ? goal.expectedDurationMinutes
-      : null;
+  const initialDuration = goal.expectedDurationMinutes;
+  const selectableDurations = durationOptions(goal.expectedDurationMinutes);
 
   const [selectedDuration, setSelectedDuration] = useState<number | null>(
     initialDuration,
@@ -80,7 +88,7 @@ export function LogSessionSheet({
           <Text style={styles.title}>Log {goal.name}</Text>
 
           <View style={styles.row}>
-            {QUICK_DURATIONS.map((duration) => {
+            {selectableDurations.map((duration) => {
               const selected = selectedDuration === duration;
               return (
                 <Pressable
