@@ -82,20 +82,23 @@ export function GoalRow({
         onPress={() => {
           void handleQuickLog();
         }}
-        style={[
-          styles.sessionControl,
-          targetMet ? styles.sessionControlMet : null,
-          model.weeklySessionCount > 0 && !targetMet
-            ? styles.sessionControlInProgress
-            : null,
-          isPending ? styles.buttonDisabled : null,
-        ]}
+        style={[styles.sessionControl, isPending ? styles.buttonDisabled : null]}
       >
-        {targetMet ? (
-          <Ionicons color={colors.inkOnDark} name="checkmark" size={22} />
-        ) : model.weeklySessionCount > 0 ? (
-          <Text style={styles.sessionControlCount}>{model.weeklySessionCount}</Text>
-        ) : null}
+        <View
+          style={[
+            styles.sessionIndicator,
+            targetMet ? styles.sessionIndicatorMet : null,
+            model.weeklySessionCount > 0 && !targetMet
+              ? styles.sessionIndicatorInProgress
+              : null,
+          ]}
+        >
+          {targetMet ? (
+            <Ionicons color={colors.inkOnDark} name="checkmark" size={18} />
+          ) : model.weeklySessionCount > 0 ? (
+            <Text style={styles.sessionControlCount}>{model.weeklySessionCount}</Text>
+          ) : null}
+        </View>
       </Pressable>
       <View style={styles.info}>
         <Text style={styles.name}>{model.name}</Text>
@@ -152,24 +155,30 @@ const styles = StyleSheet.create({
   },
   sessionControl: {
     alignItems: "center",
-    borderColor: colors.mutedInk,
-    borderRadius: 22,
-    borderWidth: 1.5,
     height: 44,
     justifyContent: "center",
     width: 44,
   },
-  sessionControlInProgress: {
+  sessionIndicator: {
+    alignItems: "center",
+    borderColor: colors.mutedInk,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  sessionIndicatorInProgress: {
     backgroundColor: "#E4EEEA",
     borderColor: colors.verdigris,
   },
-  sessionControlMet: {
+  sessionIndicatorMet: {
     backgroundColor: colors.verdigris,
     borderColor: colors.verdigris,
   },
   sessionControlCount: {
     color: colors.verdigris,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
   },
   name: {
