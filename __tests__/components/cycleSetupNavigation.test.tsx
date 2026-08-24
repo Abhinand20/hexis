@@ -1,13 +1,18 @@
 import type { ReactNode } from "react";
 import { act, render, renderHook, waitFor } from "@testing-library/react-native";
 import { userEvent } from "@testing-library/react-native";
+import { Pressable, Text } from "react-native";
 
 import { CancelButton } from "../../app/setup/_layout";
 import DurationScreen from "../../app/setup/duration";
 import PracticesScreen from "../../app/setup/practices";
 import ReviewScreen from "../../app/setup/review";
 import type { CreateCycleInput } from "../../src/features/cycles/data/cycleRepository";
-import type { Cycle } from "../../src/features/cycles/domain/types";
+import type {
+  Cycle,
+  CycleGoal,
+  GoalRevision,
+} from "../../src/features/cycles/domain/types";
 import {
   CycleSetupProvider,
   useCycleSetupState,
@@ -17,6 +22,40 @@ const mockPush = jest.fn();
 const mockDismiss = jest.fn();
 const mockDismissTo = jest.fn();
 const mockCreateCycle = jest.fn();
+const mockGetActiveCycle = jest.fn();
+const mockGetCycleById = jest.fn();
+const mockListForCycle = jest.fn();
+const mockListRevisions = jest.fn();
+const mockRunAsync = jest.fn();
+const mockWithTransactionAsync = jest.fn();
+const mockDatabase = {
+  runAsync: mockRunAsync,
+  withTransactionAsync: mockWithTransactionAsync,
+};
+let mockSearchParams: { repeatCycleId?: string | string[] } = {};
+
+jest.mock("../../src/db/DatabaseProvider", () => ({
+  useDatabase: () => ({
+    db: mockDatabase,
+    isLoading: false,
+    error: null,
+    resetDatabase: jest.fn(),
+  }),
+}));
+
+jest.mock("../../src/features/cycles/data/cycleRepository", () => ({
+  createCycleRepository: () => ({
+    getActiveCycle: (...args: unknown[]) => mockGetActiveCycle(...args),
+    getCycleById: (...args: unknown[]) => mockGetCycleById(...args),
+  }),
+}));
+
+jest.mock("../../src/features/goals/data/goalRepository", () => ({
+  createGoalRepository: () => ({
+    listForCycle: (...args: unknown[]) => mockListForCycle(...args),
+    listRevisions: (...args: unknown[]) => mockListRevisions(...args),
+  }),
+}));
 
 jest.mock("expo-router", () => {
   const React = require("react") as typeof import("react");
@@ -35,6 +74,7 @@ jest.mock("expo-router", () => {
       dismiss: mockDismiss,
       dismissTo: mockDismissTo,
     }),
+    useLocalSearchParams: () => mockSearchParams,
     Stack: MockStack,
   };
 });
@@ -116,11 +156,98 @@ function wrapper({ children }: { children: ReactNode }) {
   return <CycleSetupProvider>{children}</CycleSetupProvider>;
 }
 
+const completedCycle: Cycle = {
+  id: "cycle-finished",
+  name: "Spring Reset",
+  startDate: "2026-07-01",
+  durationDays: 30,
+  endDate: "2026-07-30",
+  status: "completed",
+  createdAt: "2026-07-01T08:00:00.000Z",
+};
+
+const completedGoals: CycleGoal[] = [
+  {
+    id: "goal-meditate",
+    cycleId: completedCycle.id,
+    name: "Meditate",
+    cadence: "daily",
+    weeklyTargetCount: 7,
+    expectedDurationMinutes: 10,
+    activeFromDate: completedCycle.startDate,
+    inactiveFromDate: null,
+    createdAt: "2026-07-01T08:00:00.000Z",
+  },
+  {
+    id: "goal-walk",
+    cycleId: completedCycle.id,
+    name: "Walk",
+    cadence: "weekly",
+    weeklyTargetCount: 3,
+    expectedDurationMinutes: 30,
+    activeFromDate: completedCycle.startDate,
+    inactiveFromDate: null,
+    createdAt: "2026-07-01T08:01:00.000Z",
+  },
+];
+
+const meditateRevision: GoalRevision = {
+  id: "revision-meditate",
+  cycleGoalId: "goal-meditate",
+  effectiveDate: "2026-07-15",
+  name: "Morning meditation",
+  cadence: "daily",
+  weeklyTargetCount: 7,
+  expectedDurationMinutes: 15,
+};
+
+function RepeatSetupProbe() {
+  const state = useCycleSetupState();
+  return (
+    <>
+      <Text testID="repeat-duration">{state.durationDays}</Text>
+      <Text testID="repeat-selected-templates">
+        {state.templates.filter((template) => template.selected).length}
+      </Text>
+      <Text testID="repeat-practices">
+        {state.customPractices
+          .map(
+            (practice) =>
+              `${practice.id}:${practice.name}:${practice.weeklyTargetCount}:${practice.expectedDurationMinutes}`,
+          )
+          .join("|")}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() =>
+          state.setCustomPractices((current) =>
+            current.map((practice, index) =>
+              index === 0
+                ? { ...practice, name: "Edited meditation" }
+                : practice,
+            ),
+          )
+        }
+      >
+        <Text>Edit repeated practice</Text>
+      </Pressable>
+    </>
+  );
+}
+
 beforeEach(() => {
   mockPush.mockReset();
   mockDismiss.mockReset();
   mockDismissTo.mockReset();
   mockCreateCycle.mockReset();
+  mockGetActiveCycle.mockReset();
+  mockGetActiveCycle.mockResolvedValue(null);
+  mockGetCycleById.mockReset();
+  mockListForCycle.mockReset();
+  mockListRevisions.mockReset();
+  mockRunAsync.mockReset();
+  mockWithTransactionAsync.mockReset();
+  mockSearchParams = {};
 });
 
 describe("useCycleSetupState", () => {
@@ -226,6 +353,68 @@ describe("duration screen", () => {
 
     await user.press(screen.getByRole("button", { name: "Cancel" }));
     expect(mockDismiss).toHaveBeenCalled();
+  });
+
+  it("loads a finished cycle once into fresh, editable custom practices", async () => {
+    mockSearchParams = { repeatCycleId: completedCycle.id };
+    mockGetCycleById.mockResolvedValue(completedCycle);
+    mockListForCycle.mockResolvedValue(completedGoals);
+    mockListRevisions.mockImplementation(async (goalId: string) =>
+      goalId === "goal-meditate" ? [meditateRevision] : [],
+    );
+
+    const screen = await render(
+      <CycleSetupProvider>
+        <DurationScreen />
+        <RepeatSetupProbe />
+      </CycleSetupProvider>,
+    );
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText("Spring Reset")).toBeTruthy();
+    });
+    expect(screen.getByTestId("repeat-duration").props.children).toBe(30);
+    expect(screen.getByTestId("repeat-selected-templates").props.children).toBe(
+      0,
+    );
+    expect(screen.getByTestId("repeat-practices").props.children).toBe(
+      "custom-1:Morning meditation:7:15|custom-2:Walk:3:30",
+    );
+
+    await user.press(
+      screen.getByRole("button", { name: "Edit repeated practice" }),
+    );
+
+    expect(screen.getByTestId("repeat-practices").props.children).toContain(
+      "custom-1:Edited meditation:7:15",
+    );
+    expect(mockGetCycleById).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an invalid repeat source without creating or writing anything", async () => {
+    mockSearchParams = { repeatCycleId: "missing-cycle" };
+    mockGetCycleById.mockResolvedValue(null);
+
+    const screen = await render(
+      <CycleSetupProvider>
+        <DurationScreen />
+        <CancelButton />
+      </CycleSetupProvider>,
+    );
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("The cycle you chose could not be found."),
+      ).toBeTruthy();
+    });
+    await user.press(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    expect(mockCreateCycle).not.toHaveBeenCalled();
+    expect(mockRunAsync).not.toHaveBeenCalled();
+    expect(mockWithTransactionAsync).not.toHaveBeenCalled();
   });
 });
 
@@ -366,6 +555,35 @@ describe("review screen", () => {
       expect(screen.getByText("An active cycle already exists")).toBeTruthy();
     });
     expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
+    expect(mockDismissTo).not.toHaveBeenCalled();
+  });
+
+  it("explains an active-cycle conflict before createCycle is called", async () => {
+    mockGetActiveCycle.mockResolvedValue({
+      ...completedCycle,
+      id: "cycle-active",
+      name: "Current Focus",
+      status: "active",
+    });
+
+    const screen = await render(
+      <CycleSetupProvider>
+        <ReviewScreen />
+      </CycleSetupProvider>,
+    );
+    const user = userEvent.setup();
+
+    await user.press(screen.getByRole("button", { name: "Start" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "“Current Focus” is still active. End that cycle before starting a new one. Your setup changes are still here.",
+        ),
+      ).toBeTruthy();
+    });
+    expect(mockGetActiveCycle).toHaveBeenCalledTimes(1);
+    expect(mockCreateCycle).not.toHaveBeenCalled();
     expect(mockDismissTo).not.toHaveBeenCalled();
   });
 });

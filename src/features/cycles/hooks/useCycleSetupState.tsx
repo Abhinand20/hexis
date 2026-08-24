@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useMemo,
   useState,
@@ -14,12 +15,18 @@ import type {
   TemplatePractice,
 } from "../../goals/components/GoalTemplateList";
 import { createDefaultGoalTemplates } from "../../goals/components/GoalTemplateList";
+import type { RepeatCycleDraft } from "../domain/repeatCycleDraft";
 import type { CycleDurationDays } from "../domain/types";
 
 export type EditorTarget =
   | { kind: "create" }
   | { kind: "edit-template"; id: string }
   | { kind: "edit-custom"; id: string };
+
+export type RepeatSetupSource = {
+  cycleId: string;
+  cycleName: string;
+};
 
 export type CycleSetupContextValue = {
   durationDays: CycleDurationDays;
@@ -34,6 +41,11 @@ export type CycleSetupContextValue = {
   setCycleName: (name: string) => void;
   includedPractices: (TemplatePractice | CustomPractice)[];
   hasPractices: boolean;
+  repeatSource: RepeatSetupSource | null;
+  initializeFromRepeatDraft: (
+    source: RepeatSetupSource,
+    draft: RepeatCycleDraft,
+  ) => void;
 };
 
 function defaultCycleName(durationDays: CycleDurationDays): string {
@@ -42,54 +54,134 @@ function defaultCycleName(durationDays: CycleDurationDays): string {
 
 const CycleSetupContext = createContext<CycleSetupContextValue | null>(null);
 
+type SetupState = {
+  durationDays: CycleDurationDays;
+  templates: TemplatePractice[];
+  customPractices: CustomPractice[];
+  cycleName: string;
+  nameTouched: boolean;
+  nextCustomId: number;
+  repeatSource: RepeatSetupSource | null;
+};
+
+function createInitialState(): SetupState {
+  return {
+    durationDays: 30,
+    templates: createDefaultGoalTemplates(),
+    customPractices: [],
+    cycleName: defaultCycleName(30),
+    nameTouched: false,
+    nextCustomId: 1,
+    repeatSource: null,
+  };
+}
+
 export function CycleSetupProvider({
   children,
 }: {
   children: ReactNode;
 }): ReactElement {
-  const [durationDays, setDurationDays] = useState<CycleDurationDays>(30);
-  const [templates, setTemplates] =
-    useState<TemplatePractice[]>(createDefaultGoalTemplates);
-  const [customPractices, setCustomPractices] = useState<CustomPractice[]>([]);
-  const [cycleName, setCycleNameState] = useState(defaultCycleName(30));
-  const [nameTouched, setNameTouched] = useState(false);
-  const [nextCustomId, setNextCustomId] = useState(1);
+  const [state, setState] = useState<SetupState>(createInitialState);
+
+  const setTemplates: Dispatch<SetStateAction<TemplatePractice[]>> =
+    useCallback((next) => {
+      setState((current) => ({
+        ...current,
+        templates:
+          typeof next === "function" ? next(current.templates) : next,
+      }));
+    }, []);
+
+  const setCustomPractices: Dispatch<SetStateAction<CustomPractice[]>> =
+    useCallback((next) => {
+      setState((current) => ({
+        ...current,
+        customPractices:
+          typeof next === "function" ? next(current.customPractices) : next,
+      }));
+    }, []);
+
+  const setNextCustomId: Dispatch<SetStateAction<number>> = useCallback(
+    (next) => {
+      setState((current) => ({
+        ...current,
+        nextCustomId:
+          typeof next === "function" ? next(current.nextCustomId) : next,
+      }));
+    },
+    [],
+  );
 
   const includedPractices = useMemo(
     () => [
-      ...templates.filter((template) => template.selected),
-      ...customPractices,
+      ...state.templates.filter((template) => template.selected),
+      ...state.customPractices,
     ],
-    [templates, customPractices],
+    [state.templates, state.customPractices],
   );
 
   const hasPractices = includedPractices.length > 0;
 
-  function selectDuration(next: CycleDurationDays) {
-    setDurationDays(next);
-    if (!nameTouched) {
-      setCycleNameState(defaultCycleName(next));
-    }
-  }
+  const selectDuration = useCallback((next: CycleDurationDays) => {
+    setState((current) => ({
+      ...current,
+      durationDays: next,
+      cycleName: current.nameTouched
+        ? current.cycleName
+        : defaultCycleName(next),
+    }));
+  }, []);
 
-  function setCycleName(name: string) {
-    setNameTouched(true);
-    setCycleNameState(name);
-  }
+  const setCycleName = useCallback((name: string) => {
+    setState((current) => ({
+      ...current,
+      cycleName: name,
+      nameTouched: true,
+    }));
+  }, []);
+
+  const initializeFromRepeatDraft = useCallback(
+    (source: RepeatSetupSource, draft: RepeatCycleDraft) => {
+      setState((current) => {
+        if (current.repeatSource?.cycleId === source.cycleId) {
+          return current;
+        }
+
+        return {
+          durationDays: draft.durationDays,
+          templates: createDefaultGoalTemplates().map((template) => ({
+            ...template,
+            selected: false,
+          })),
+          customPractices: draft.practices.map((practice, index) => ({
+            ...practice,
+            id: `custom-${index + 1}`,
+          })),
+          cycleName: draft.cycleName,
+          nameTouched: true,
+          nextCustomId: draft.practices.length + 1,
+          repeatSource: { ...source },
+        };
+      });
+    },
+    [],
+  );
 
   const value: CycleSetupContextValue = {
-    durationDays,
+    durationDays: state.durationDays,
     selectDuration,
-    templates,
+    templates: state.templates,
     setTemplates,
-    customPractices,
+    customPractices: state.customPractices,
     setCustomPractices,
-    nextCustomId,
+    nextCustomId: state.nextCustomId,
     setNextCustomId,
-    cycleName,
+    cycleName: state.cycleName,
     setCycleName,
     includedPractices,
     hasPractices,
+    repeatSource: state.repeatSource,
+    initializeFromRepeatDraft,
   };
 
   return (
