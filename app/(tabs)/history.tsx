@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../src/design/tokens";
+import { CycleArchiveSheet } from "../../src/features/cycles/components/CycleArchiveSheet";
 import { CycleCalendar } from "../../src/features/cycles/components/CycleCalendar";
 import {
   calendarDayIntensity,
@@ -130,9 +131,11 @@ export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{
+    cycleId?: string | string[];
     filter?: string | string[];
     date?: string | string[];
   }>();
+  const routeCycleId = parameterValue(params.cycleId);
   const routeFilter = parameterValue(params.filter);
   const routeDate = parameterValue(params.date);
   const [focusVersion, setFocusVersion] = useState(0);
@@ -141,10 +144,11 @@ export default function HistoryScreen() {
       setFocusVersion((version) => version + 1);
     }, []),
   );
-  const state = useCycleHistory(focusVersion);
+  const state = useCycleHistory(focusVersion, routeCycleId);
   const activityMutation = useEditSession();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [editorLocalError, setEditorLocalError] = useState<string | null>(null);
+  const [archiveVisible, setArchiveVisible] = useState(false);
   const [filter, setFilter] = useState<HistoryFilter>(
     routeFilter === "day" || routeFilter === "week" || routeFilter === "cycle"
       ? routeFilter
@@ -154,6 +158,9 @@ export default function HistoryScreen() {
     isValidLocalDate(routeDate) ? routeDate : null,
   );
   const [weekPointer, setWeekPointer] = useState<string | null>(null);
+  const loadedCycleIdRef = useRef<string | null>(null);
+  const canonicalizedSelectionRef = useRef<string | null>(null);
+  const resolvedCycleId = state.status === "ready" ? state.cycle.id : undefined;
 
   useEffect(() => {
     if (routeFilter === "day") {
@@ -166,6 +173,40 @@ export default function HistoryScreen() {
       setFilter(routeFilter);
     }
   }, [routeDate, routeFilter]);
+
+  useEffect(() => {
+    if (!resolvedCycleId) {
+      return;
+    }
+
+    const canonicalSelection = `${routeCycleId ?? ""}->${resolvedCycleId}`;
+    if (
+      routeCycleId !== resolvedCycleId &&
+      canonicalizedSelectionRef.current !== canonicalSelection
+    ) {
+      canonicalizedSelectionRef.current = canonicalSelection;
+      router.setParams({ cycleId: resolvedCycleId });
+    } else if (routeCycleId === resolvedCycleId) {
+      canonicalizedSelectionRef.current = null;
+    }
+
+    if (
+      loadedCycleIdRef.current !== null &&
+      loadedCycleIdRef.current !== resolvedCycleId
+    ) {
+      setDayPointer(null);
+      setWeekPointer(null);
+      setEditor(null);
+      setEditorLocalError(null);
+      activityMutation.clearError();
+    }
+    loadedCycleIdRef.current = resolvedCycleId;
+  }, [
+    activityMutation.clearError,
+    resolvedCycleId,
+    routeCycleId,
+    router,
+  ]);
 
   const navigateToDay = useCallback(
     (localDate: string) => {
@@ -224,7 +265,7 @@ export default function HistoryScreen() {
     );
   }
 
-  const { cycle, goals, revisions, logs } = state;
+  const { archiveItems, cycle, cycles, goals, revisions, logs } = state;
   const today = todayLocalDate();
   const upperBoundDate = cycle.status === "active" && today < cycle.endDate
     ? today
@@ -236,8 +277,34 @@ export default function HistoryScreen() {
     : upperBoundDate;
   const minWeekStart = weekStart(cycle.startDate);
   const maxWeekStart = weekStart(upperBoundDate);
-  const currentWeek = weekPointer ?? maxWeekStart;
-  const statusLabel = cycle.status === "active" ? "Active cycle" : "Completed cycle";
+  const currentWeek = weekPointer !== null &&
+    weekPointer >= minWeekStart &&
+    weekPointer <= maxWeekStart
+    ? weekPointer
+    : maxWeekStart;
+  const statusLabel = cycle.status === "active"
+    ? "Active cycle"
+    : cycle.status === "ended_early"
+      ? "Ended early"
+      : "Completed cycle";
+  const selectedArchiveItem = archiveItems.find((item) => item.id === cycle.id);
+
+  const openArchive = useCallback(() => {
+    setArchiveVisible(true);
+  }, []);
+
+  const dismissArchive = useCallback(() => {
+    setArchiveVisible(false);
+  }, []);
+
+  const selectArchiveCycle = useCallback((cycleId: string) => {
+    setArchiveVisible(false);
+    router.setParams({ cycleId });
+  }, [router]);
+
+  const repeatSelectedCycle = useCallback(() => {
+    router.push(`/setup/duration?repeatCycleId=${encodeURIComponent(cycle.id)}`);
+  }, [cycle.id, router]);
 
   const openAddEditor = (
     localDate: string,
@@ -347,6 +414,44 @@ export default function HistoryScreen() {
         <Text style={styles.subtitle}>
           Look back without losing the shape of where you’re going.
         </Text>
+        <Pressable
+          accessibilityHint="Opens the cycle archive."
+          accessibilityLabel={`Cycle archive, ${cycles.length} ${cycles.length === 1 ? "cycle" : "cycles"}`}
+          accessibilityRole="button"
+          onPress={openArchive}
+          style={({ pressed }) => [
+            styles.cycleSelector,
+            pressed ? styles.cycleSelectorPressed : null,
+          ]}
+        >
+          <View style={styles.cycleSelectorCopy}>
+            <Text style={styles.cycleSelectorKicker}>{statusLabel}</Text>
+            <Text numberOfLines={1} style={styles.cycleSelectorName}>
+              {cycle.name}
+            </Text>
+            {selectedArchiveItem ? (
+              <Text style={styles.cycleSelectorDates}>
+                {selectedArchiveItem.dateRange}
+              </Text>
+            ) : null}
+          </View>
+          <Text accessibilityElementsHidden style={styles.cycleSelectorAction}>
+            Browse
+          </Text>
+        </Pressable>
+        {cycle.status === "completed" || cycle.status === "ended_early" ? (
+          <Pressable
+            accessibilityHint="Prefills a new editable setup without copying activity."
+            accessibilityRole="button"
+            onPress={repeatSelectedCycle}
+            style={({ pressed }) => [
+              styles.repeatButton,
+              pressed ? styles.repeatButtonPressed : null,
+            ]}
+          >
+            <Text style={styles.repeatButtonText}>Repeat cycle</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View accessibilityRole="tablist" style={styles.filterRow}>
@@ -423,6 +528,14 @@ export default function HistoryScreen() {
         />
       ) : null}
       </ScrollView>
+
+      <CycleArchiveSheet
+        visible={archiveVisible}
+        items={archiveItems}
+        selectedCycleId={cycle.id}
+        onSelectCycle={selectArchiveCycle}
+        onDismiss={dismissArchive}
+      />
 
       {editorInitialValue ? (
         <ActivityEditorSheet
@@ -1057,6 +1170,69 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 23,
     maxWidth: 340,
+  },
+  cycleSelector: {
+    alignItems: "center",
+    backgroundColor: "#FFFEFA",
+    borderColor: colors.hairline,
+    borderCurve: "continuous",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "space-between",
+    marginTop: spacing.md,
+    minHeight: 72,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  cycleSelectorPressed: {
+    opacity: 0.72,
+  },
+  cycleSelectorCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  cycleSelectorKicker: {
+    color: colors.verdigris,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+  },
+  cycleSelectorName: {
+    color: colors.ink,
+    fontFamily: "Georgia",
+    fontSize: 19,
+  },
+  cycleSelectorDates: {
+    color: colors.mutedInk,
+    fontSize: 13,
+  },
+  cycleSelectorAction: {
+    color: colors.verdigris,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  repeatButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderColor: colors.verdigris,
+    borderCurve: "continuous",
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+  },
+  repeatButtonPressed: {
+    opacity: 0.7,
+  },
+  repeatButtonText: {
+    color: colors.verdigris,
+    fontSize: 14,
+    fontWeight: "700",
   },
   filterRow: {
     alignItems: "center",

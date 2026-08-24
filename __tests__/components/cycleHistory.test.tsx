@@ -2,7 +2,7 @@ import { act, render, renderHook, waitFor } from "@testing-library/react-native"
 import { userEvent } from "@testing-library/react-native";
 
 import HistoryScreen from "../../app/(tabs)/history";
-import type { CycleGoal } from "../../src/features/cycles/domain/types";
+import type { Cycle, CycleGoal } from "../../src/features/cycles/domain/types";
 import {
   useCycleHistory,
   type CycleHistoryState,
@@ -43,12 +43,14 @@ expect.extend({
 });
 
 const mockGetActiveCycle = jest.fn();
-const mockGetMostRecentCycle = jest.fn();
+const mockGetCycleById = jest.fn();
+const mockListCycles = jest.fn();
 const mockListForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
 const mockSetParams = jest.fn();
-let mockSearchParams: { filter?: string; date?: string } = {};
+const mockPush = jest.fn();
+let mockSearchParams: { cycleId?: string; filter?: string; date?: string } = {};
 
 jest.mock("expo-router", () => {
   const React = require("react") as typeof import("react");
@@ -60,7 +62,7 @@ jest.mock("expo-router", () => {
       }, [callback]);
     },
     useLocalSearchParams: () => mockSearchParams,
-    useRouter: () => ({ setParams: mockSetParams }),
+    useRouter: () => ({ push: mockPush, setParams: mockSetParams }),
   };
 });
 
@@ -91,7 +93,8 @@ jest.mock("../../src/db/DatabaseProvider", () => {
 jest.mock("../../src/features/cycles/data/cycleRepository", () => ({
   createCycleRepository: () => ({
     getActiveCycle: (...args: unknown[]) => mockGetActiveCycle(...args),
-    getMostRecentCycle: () => mockGetMostRecentCycle(),
+    getCycleById: (...args: unknown[]) => mockGetCycleById(...args),
+    listCycles: () => mockListCycles(),
   }),
 }));
 
@@ -145,20 +148,23 @@ function logOn(cycleGoalId: string, localDate: string, durationMinutes: number) 
 
 beforeEach(() => {
   mockGetActiveCycle.mockReset();
-  mockGetMostRecentCycle.mockReset();
+  mockGetCycleById.mockReset();
+  mockListCycles.mockReset();
   mockListForCycle.mockReset();
   mockListRevisions.mockReset();
   mockListSessionLogs.mockReset();
   mockSetParams.mockReset();
+  mockPush.mockReset();
   mockSearchParams = {};
   mockListRevisions.mockResolvedValue([]);
-  mockGetMostRecentCycle.mockResolvedValue(null);
+  mockGetCycleById.mockResolvedValue(null);
+  mockListCycles.mockResolvedValue([]);
 });
 
 describe("useCycleHistory", () => {
   it("is empty when no cycle has ever existed", async () => {
     mockGetActiveCycle.mockResolvedValue(null);
-    mockGetMostRecentCycle.mockResolvedValue(null);
+    mockListCycles.mockResolvedValue([]);
 
     const { result } = await renderHook(() => useCycleHistory());
 
@@ -177,6 +183,7 @@ describe("useCycleHistory", () => {
       endDate: "2026-07-30",
     });
     mockGetActiveCycle.mockResolvedValue(cycle);
+    mockListCycles.mockResolvedValue([cycle]);
     mockListForCycle.mockResolvedValue([strengthGoal, readGoal]);
     mockListSessionLogs.mockResolvedValue([
       logOn("goal-strength", "2026-07-21", 60),
@@ -197,10 +204,12 @@ describe("useCycleHistory", () => {
     expect(state.cycle).toEqual(cycle);
     expect(state.goals).toEqual([strengthGoal, readGoal]);
     expect(state.logs).toHaveLength(2);
-    expect(mockGetMostRecentCycle).not.toHaveBeenCalled();
+    expect(mockGetActiveCycle).toHaveBeenCalledWith("2026-07-24");
+    expect(state.cycles).toEqual([cycle]);
+    expect(state.archiveItems).toHaveLength(1);
   });
 
-  it("falls back to the most recent cycle when none is active", async () => {
+  it("falls back to the first archive cycle when no route selection exists", async () => {
     const recent = createCycle({
       id: "cycle-1",
       name: "Summer Focus",
@@ -210,7 +219,7 @@ describe("useCycleHistory", () => {
       status: "completed",
     });
     mockGetActiveCycle.mockResolvedValue(null);
-    mockGetMostRecentCycle.mockResolvedValue(recent);
+    mockListCycles.mockResolvedValue([recent]);
     mockListForCycle.mockResolvedValue([strengthGoal]);
     mockListSessionLogs.mockResolvedValue([]);
 
@@ -226,6 +235,41 @@ describe("useCycleHistory", () => {
     }
     expect(state.cycle.status).toBe("completed");
     expect(state.goals).toEqual([strengthGoal]);
+  });
+
+  it("loads the valid route-selected cycle without changing archive order", async () => {
+    const active = createCycle({ id: "cycle-active", name: "Current" });
+    const archived = createCycle({
+      id: "cycle-1",
+      name: "Summer Focus",
+      startDate: "2026-07-01",
+      durationDays: 30,
+      endDate: "2026-07-30",
+      status: "completed",
+    });
+    mockGetActiveCycle.mockResolvedValue(active);
+    mockListCycles.mockResolvedValue([active, archived]);
+    mockGetCycleById.mockResolvedValue(archived);
+    mockListForCycle.mockImplementation(async (cycleId: string) =>
+      cycleId === archived.id ? [strengthGoal] : [],
+    );
+    mockListSessionLogs.mockResolvedValue([]);
+
+    const { result } = await renderHook(() =>
+      useCycleHistory(0, archived.id),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const state = result.current;
+    if (state.status !== "ready") {
+      throw new Error("expected ready state");
+    }
+    expect(state.cycle.id).toBe(archived.id);
+    expect(state.cycles.map((cycle) => cycle.id)).toEqual([
+      active.id,
+      archived.id,
+    ]);
+    expect(mockGetCycleById).toHaveBeenCalledWith(archived.id);
   });
 
   it("returns an error state when loading fails", async () => {
@@ -263,15 +307,18 @@ jest.mock("../../src/features/cycles/hooks/useCycleHistory", () => {
 function readyState(
   overrides: Partial<Extract<CycleHistoryState, { status: "ready" }>> = {},
 ): CycleHistoryState {
+  const cycle = createCycle({
+    id: "cycle-1",
+    name: "Summer Focus",
+    startDate: "2026-07-01",
+    durationDays: 30,
+    endDate: "2026-07-30",
+  });
   return {
     status: "ready",
-    cycle: createCycle({
-      id: "cycle-1",
-      name: "Summer Focus",
-      startDate: "2026-07-01",
-      durationDays: 30,
-      endDate: "2026-07-30",
-    }),
+    cycle,
+    cycles: [cycle],
+    archiveItems: [archiveItemFor(cycle)],
     goals: [strengthGoal, readGoal],
     revisions: [],
     logs: [
@@ -284,6 +331,20 @@ function readyState(
       logOn("goal-read", "2026-07-24", 20),
     ],
     ...overrides,
+  };
+}
+
+function archiveItemFor(cycle: Cycle) {
+  return {
+    id: cycle.id,
+    name: cycle.name,
+    dateRange: "Jul 1–Jul 30, 2026",
+    status: cycle.status,
+    sessionCount: 0,
+    minutesLogged: 0,
+    activeDayRatio: 0,
+    practiceCount: 2,
+    practiceNames: ["Strength", "Read"],
   };
 }
 
@@ -319,6 +380,152 @@ describe("HistoryScreen", () => {
     expect(screen.getByLabelText("Next week")).toHaveAccessibilityState({
       disabled: true,
     });
+  });
+
+  it("canonicalizes a missing or invalid cycleId to the resolved archive fallback", async () => {
+    mockSearchParams = { cycleId: "deleted-cycle" };
+    mockUseCycleHistory.mockReturnValue(readyState());
+
+    await render(<HistoryScreen />);
+
+    expect(mockUseCycleHistory.mock.calls.some(([, cycleId]) =>
+      cycleId === "deleted-cycle",
+    )).toBe(true);
+    expect(mockSetParams).toHaveBeenCalledWith({ cycleId: "cycle-1" });
+  });
+
+  it("selects an archived cycle through the route and switches all visible bounds", async () => {
+    const activeState = readyState();
+    if (activeState.status !== "ready") {
+      throw new Error("expected ready state");
+    }
+    const archivedCycle = createCycle({
+      id: "cycle-archived",
+      name: "Spring Reset",
+      startDate: "2026-04-01",
+      durationDays: 30,
+      endDate: "2026-04-18",
+      status: "ended_early",
+    });
+    const archivedGoal = {
+      ...strengthGoal,
+      id: "goal-archived",
+      cycleId: archivedCycle.id,
+      activeFromDate: archivedCycle.startDate,
+    };
+    const archivedState: CycleHistoryState = {
+      status: "ready",
+      cycle: archivedCycle,
+      cycles: [activeState.cycle, archivedCycle],
+      archiveItems: [
+        archiveItemFor(activeState.cycle),
+        {
+          ...archiveItemFor(archivedCycle),
+          dateRange: "Apr 1–Apr 18, 2026",
+          practiceNames: ["Strength"],
+        },
+      ],
+      goals: [archivedGoal],
+      revisions: [],
+      logs: [logOn(archivedGoal.id, "2026-04-18", 45)],
+    };
+    mockSearchParams = { cycleId: activeState.cycle.id, filter: "day" };
+    mockUseCycleHistory.mockImplementation(
+      (_refreshVersion: number, cycleId?: string) =>
+        cycleId === archivedCycle.id ? archivedState : {
+          ...activeState,
+          cycles: archivedState.cycles,
+          archiveItems: archivedState.archiveItems,
+        },
+    );
+    const user = userEvent.setup();
+    const screen = await render(<HistoryScreen />);
+
+    await user.press(
+      screen.getByRole("button", { name: "Cycle archive, 2 cycles" }),
+    );
+    await user.press(
+      screen.getByRole("button", { name: /Spring Reset, Ended early/ }),
+    );
+    expect(mockSetParams).toHaveBeenLastCalledWith({
+      cycleId: archivedCycle.id,
+    });
+
+    await act(async () => {
+      mockSearchParams = {
+        cycleId: archivedCycle.id,
+        filter: "day",
+        date: "2026-07-24",
+      };
+      screen.rerender(<HistoryScreen />);
+    });
+
+    expect(await screen.findByText("Sat, Apr 18")).toBeTruthy();
+    expect(screen.getByText("Ended early")).toBeTruthy();
+    expect(screen.getAllByText("45m")).toHaveLength(2);
+    expect(screen.getByLabelText("Next day")).toHaveAccessibilityState({
+      disabled: true,
+    });
+    expect(screen.getByRole("button", { name: "Repeat cycle" })).toBeTruthy();
+    await user.press(
+      screen.getByRole("button", { name: /Edit Strength activity/ }),
+    );
+    expect(screen.getByText("Edit activity")).toBeTruthy();
+    expect(
+      mockUseCycleHistory.mock.calls.every(([, cycleId]) =>
+        cycleId === activeState.cycle.id || cycleId === archivedCycle.id,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a valid route selection through focus refreshes", async () => {
+    mockSearchParams = { cycleId: "cycle-1" };
+    mockUseCycleHistory.mockReturnValue(readyState());
+
+    await render(<HistoryScreen />);
+
+    await waitFor(() => {
+      expect(
+        Math.max(
+          ...mockUseCycleHistory.mock.calls.map(([version]) => version as number),
+        ),
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      mockUseCycleHistory.mock.calls.every(([, cycleId]) =>
+        cycleId === "cycle-1",
+      ),
+    ).toBe(true);
+    expect(mockSetParams).not.toHaveBeenCalledWith({ cycleId: "cycle-1" });
+  });
+
+  it("only offers Repeat cycle for ended selections and performs navigation only", async () => {
+    const completed = createCycle({
+      id: "cycle-completed",
+      status: "completed",
+    });
+    mockSearchParams = { cycleId: completed.id };
+    mockUseCycleHistory.mockReturnValue(
+      readyState({
+        cycle: completed,
+        cycles: [completed],
+        archiveItems: [archiveItemFor(completed)],
+      }),
+    );
+    const user = userEvent.setup();
+    const screen = await render(<HistoryScreen />);
+
+    await user.press(screen.getByRole("button", { name: "Repeat cycle" }));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/setup/duration?repeatCycleId=cycle-completed",
+    );
+    expect(mockSetParams).not.toHaveBeenCalled();
+
+    mockUseCycleHistory.mockReturnValue(readyState());
+    mockSearchParams = { cycleId: "cycle-1" };
+    await act(async () => screen.rerender(<HistoryScreen />));
+    expect(screen.queryByRole("button", { name: "Repeat cycle" })).toBeNull();
   });
 
   it("labels boundary-week work without counting it as an eligible target", async () => {
@@ -452,7 +659,7 @@ describe("HistoryScreen", () => {
     });
     expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(24);
     expect(screen.queryByRole("button", { name: "Cycle day 25" })).toBeNull();
-    expect(screen.getByText("Summer Focus")).toBeTruthy();
+    expect(screen.getAllByText("Summer Focus")).toHaveLength(2);
     expect(screen.getByText(/30 active days/i)).toBeTruthy();
     expect(screen.getByText("Weekly trend")).toBeTruthy();
     expect(screen.getByText("Practice consistency")).toBeTruthy();

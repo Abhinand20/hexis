@@ -212,6 +212,7 @@ export function CycleArchiveSheet({
           keyExtractor={keyExtractor}
           ListEmptyComponent={ArchiveEmptyState}
           renderItem={renderItem}
+          testID="cycle-archive-list"
         />
       </View>
     </Modal>

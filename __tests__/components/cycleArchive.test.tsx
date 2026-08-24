@@ -105,6 +105,31 @@ it("shows a useful empty state without a loading dependency", async () => {
   ).toBeTruthy();
 });
 
+it("keeps a single cycle explicitly selectable", async () => {
+  const screen = await renderArchive({ items: [archiveItems[0]] });
+
+  expect(
+    screen.getByRole("button", { name: /Autumn Foundation, Active/ }),
+  ).toBeSelected();
+  expect(screen.queryByText("No cycles yet")).toBeNull();
+});
+
+it("virtualizes a long archive instead of expanding it into the modal tree", async () => {
+  const longArchive = Array.from({ length: 120 }, (_, index) => ({
+    ...archiveItems[1],
+    id: `cycle-${index}`,
+    name: `Cycle ${index + 1}`,
+  }));
+  const screen = await renderArchive({
+    items: longArchive,
+    selectedCycleId: "cycle-0",
+  });
+
+  const list = screen.getByTestId("cycle-archive-list");
+  expect(list.props.data).toHaveLength(120);
+  expect(screen.getByText("Cycle 1")).toBeTruthy();
+});
+
 it("does not expose archive content while hidden", async () => {
   const screen = await renderArchive({ visible: false });
 

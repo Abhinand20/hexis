@@ -6,6 +6,7 @@ import { activityInstantFromLocalFields } from "../../src/features/logging/domai
 import { createCycle } from "../../src/test/factories";
 
 const mockSetParams = jest.fn();
+const mockPush = jest.fn();
 const mockUseCycleHistory = jest.fn();
 const mockCreate = jest.fn();
 const mockCorrect = jest.fn();
@@ -23,7 +24,7 @@ jest.mock("expo-router", () => {
       React.useEffect(() => callback(), [callback]);
     },
     useLocalSearchParams: () => mockSearchParams,
-    useRouter: () => ({ setParams: mockSetParams }),
+    useRouter: () => ({ push: mockPush, setParams: mockSetParams }),
   };
 });
 
@@ -89,14 +90,29 @@ const originalSession = {
 };
 
 function readyState(): Extract<CycleHistoryState, { status: "ready" }> {
+  const cycle = createCycle({
+    id: "cycle-1",
+    startDate: "2026-08-01",
+    endDate: "2026-08-30",
+    durationDays: 30,
+  });
   return {
     status: "ready",
-    cycle: createCycle({
-      id: "cycle-1",
-      startDate: "2026-08-01",
-      endDate: "2026-08-30",
-      durationDays: 30,
-    }),
+    cycle,
+    cycles: [cycle],
+    archiveItems: [
+      {
+        id: cycle.id,
+        name: cycle.name,
+        dateRange: "Aug 1–Aug 30, 2026",
+        status: cycle.status,
+        sessionCount: 1,
+        minutesLogged: 30,
+        activeDayRatio: 1 / 23,
+        practiceCount: 2,
+        practiceNames: ["Strength", "Read"],
+      },
+    ],
     goals: [strengthGoal, readGoal],
     revisions: [],
     logs: [originalSession],
