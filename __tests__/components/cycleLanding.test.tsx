@@ -7,6 +7,10 @@ import { addLocalDays } from "../../src/features/cycles/domain/date";
 import type { CycleGoal } from "../../src/features/cycles/domain/types";
 import { useCycleLanding, type CycleLandingState } from "../../src/features/cycles/hooks/useCycleLanding";
 import type { CycleAchievementSummary } from "../../src/features/cycles/domain/cycleSummary";
+import type {
+  HomeDashboardPractice,
+  HomeDashboardSummary,
+} from "../../src/features/cycles/domain/homeDashboard";
 import { createCycle } from "../../src/test/factories";
 
 // ---------------------------------------------------------------------------
@@ -129,6 +133,7 @@ function logOn(cycleGoalId: string, localDate: string, durationMinutes: number) 
     cycleGoalId,
     localDate,
     durationMinutes,
+    startedAt: `${localDate}T00:00:00.000Z`,
     createdAt: `${localDate}T00:00:00.000Z`,
   };
 }
@@ -190,7 +195,6 @@ describe("useCycleLanding", () => {
       cycleName: "Summer Focus",
       dayLabel: "Day 24 / 30",
       daysRemainingLabel: "6 days remaining",
-      overallProgressRatio: 5 / 24,
     });
     expect(state.calendarDays).toHaveLength(30);
     expect(state.calendarDays[23]).toEqual({
@@ -198,34 +202,40 @@ describe("useCycleLanding", () => {
       intensity: 2,
       isToday: true,
     });
-    expect(state.goals).toEqual([
-      {
-        goalId: "goal-strength",
-        name: "Strength",
-        streakLabel: "No streak yet",
-        weeklyProgressLabel: "2/3 this week",
-        weeklyProgressRatio: 2 / 3,
-        weeklySessionCount: 2,
-        weeklySessionTarget: 3,
-        weeklyMembership: "full",
-        todayLogs: [],
-        expectedDurationMinutes: 60,
-      },
-      {
-        goalId: "goal-read",
-        name: "Read",
-        streakLabel: "5 days streak",
-        weeklyProgressLabel: "5/7 this week",
-        weeklyProgressRatio: 5 / 7,
-        weeklySessionCount: 5,
-        weeklySessionTarget: 7,
-        weeklyMembership: "full",
-        todayLogs: [
-          logOn("goal-read", "2026-07-24", 20),
-        ],
-        expectedDurationMinutes: 20,
-      },
+    expect(state.dashboard.sessions).toEqual({
+      logged: 7,
+      target: 10,
+      remaining: 3,
+      progressRatio: 0.7,
+    });
+    expect(state.dashboard.minutes).toEqual({
+      logged: 220,
+      target: 320,
+      remaining: 100,
+      progressRatio: 220 / 320,
+    });
+    expect(state.actionablePractices.map((practice) => practice.goalId)).toEqual([
+      "goal-strength",
+      "goal-read",
     ]);
+    expect(state.actionablePractices[0]).toMatchObject({
+      name: "Strength",
+      membership: "full",
+      state: "in_progress",
+      sessionCount: 2,
+      sessionTarget: 3,
+      sessionRemaining: 1,
+      expectedDurationMinutes: 60,
+    });
+    expect(state.actionablePractices[1]).toMatchObject({
+      name: "Read",
+      membership: "full",
+      sessionCount: 5,
+      sessionTarget: 7,
+      sessionRemaining: 2,
+      currentStreak: 5,
+      todaySessions: [logOn("goal-read", "2026-07-24", 20)],
+    });
   });
 
   it("shows only date-active practices while retaining stopped practices in the calendar", async () => {
@@ -259,12 +269,23 @@ describe("useCycleLanding", () => {
     }
 
     expect(mockListActiveForCycle).toHaveBeenCalledWith("cycle-1", "2026-07-24");
-    expect(result.current.goals.map((goal) => goal.goalId)).toEqual(["goal-read"]);
-    expect(result.current.goals[0]).toEqual(
+    expect(result.current.dashboard.practices.map((goal) => goal.goalId)).toEqual([
+      "goal-strength",
+      "goal-read",
+    ]);
+    expect(
+      result.current.actionablePractices.map((goal) => goal.goalId),
+    ).toEqual(["goal-read"]);
+    expect(result.current.dashboard.totals).toEqual({
+      sessionCount: 1,
+      minutesLogged: 60,
+    });
+    expect(result.current.actionablePractices[0]).toEqual(
       expect.objectContaining({
-        weeklyMembership: "partial",
-        weeklyProgressLabel: "Partial week · 0 sessions logged",
-        weeklyProgressRatio: 0,
+        membership: "partial",
+        state: "partial_week",
+        sessionCount: 0,
+        sessionTarget: null,
       }),
     );
     expect(
@@ -432,6 +453,78 @@ function buildCalendarDays() {
   }));
 }
 
+function buildPractice(
+  overrides: Partial<HomeDashboardPractice> = {},
+): HomeDashboardPractice {
+  return {
+    goalId: "goal-strength",
+    name: "Strength",
+    cadence: "weekly",
+    expectedDurationMinutes: 60,
+    membership: "full",
+    state: "in_progress",
+    sessionCount: 2,
+    sessionTarget: 3,
+    sessionRemaining: 1,
+    sessionProgressRatio: 2 / 3,
+    minutesLogged: 120,
+    minutesTarget: 180,
+    minutesRemaining: 60,
+    minutesProgressRatio: 2 / 3,
+    currentStreak: 0,
+    todaySessions: [],
+    ...overrides,
+  };
+}
+
+function buildDashboard(
+  practices: HomeDashboardPractice[] = [],
+  overrides: Partial<HomeDashboardSummary> = {},
+): HomeDashboardSummary {
+  return {
+    throughDate: "2026-07-24",
+    week: {
+      startDate: "2026-07-20",
+      endDate: "2026-07-26",
+      calendarDaysRemaining: 2,
+    },
+    totals: { sessionCount: 7, minutesLogged: 220 },
+    sessions: { logged: 7, target: 10, remaining: 3, progressRatio: 0.7 },
+    minutes: { logged: 220, target: 320, remaining: 100, progressRatio: 220 / 320 },
+    previousWeekSessionDelta: 2,
+    recentDays: Array.from({ length: 7 }, (_, index) => ({
+      localDate: addLocalDays("2026-07-18", index),
+      sessionCount: index === 6 ? 1 : 0,
+      minutesLogged: index === 6 ? 20 : 0,
+    })),
+    hasPartialMembership: practices.some(
+      (practice) => practice.membership === "partial",
+    ),
+    practices,
+    todaySessions: practices.flatMap((practice) => practice.todaySessions),
+    ...overrides,
+  };
+}
+
+function buildReadyState(
+  practices: HomeDashboardPractice[] = [],
+  refresh: () => Promise<void> = jest.fn().mockResolvedValue(undefined),
+  dashboardOverrides: Partial<HomeDashboardSummary> = {},
+): Extract<CycleLandingState, { status: "ready" }> {
+  return {
+    status: "ready",
+    header: {
+      cycleName: "Summer Focus",
+      dayLabel: "Day 24 / 30",
+      daysRemainingLabel: "6 days remaining",
+    },
+    calendarDays: buildCalendarDays(),
+    dashboard: buildDashboard(practices, dashboardOverrides),
+    actionablePractices: practices,
+    refresh,
+  };
+}
+
 describe("CycleLandingScreen", () => {
   beforeEach(() => {
     mockPush.mockReset();
@@ -440,87 +533,77 @@ describe("CycleLandingScreen", () => {
     mockFocusEffectCallback = undefined;
   });
 
+  it("announces loading and preserves an explicit error state", async () => {
+    mockUseCycleLanding.mockReturnValue({ status: "loading" } satisfies CycleLandingState);
+    const loading = await render(<CycleLandingScreen />);
+
+    expect(loading.getByLabelText("Loading your cycle")).toBeTruthy();
+
+    await loading.unmount();
+    mockUseCycleLanding.mockReturnValue({
+      status: "error",
+      message: "Could not load dashboard",
+    } satisfies CycleLandingState);
+    const error = await render(<CycleLandingScreen />);
+
+    expect(error.getByText("Could not load dashboard")).toBeTruthy();
+  });
+
   it("renders the header, calendar, and goal rows from a ready state", async () => {
-    const readyState: CycleLandingState = {
-      status: "ready",
-      header: {
-        cycleName: "Summer Focus",
-        dayLabel: "Day 24 / 30",
-        daysRemainingLabel: "6 days remaining",
-        overallProgressRatio: 5 / 24,
-      },
-      calendarDays: buildCalendarDays(),
-      goals: [
-        {
-          goalId: "goal-strength",
-          name: "Strength",
-          streakLabel: "No streak yet",
-          weeklyProgressLabel: "2/3 this week",
-          weeklyProgressRatio: 2 / 3,
-          weeklySessionCount: 2,
-          weeklySessionTarget: 3,
-          weeklyMembership: "full",
-          todayLogs: [],
-          expectedDurationMinutes: 60,
-        },
-        {
-          goalId: "goal-read",
-          name: "Read",
-          streakLabel: "5 days streak",
-          weeklyProgressLabel: "5/7 this week",
-          weeklyProgressRatio: 5 / 7,
-          weeklySessionCount: 5,
-          weeklySessionTarget: 7,
-          weeklyMembership: "full",
-          todayLogs: [],
-          expectedDurationMinutes: 20,
-        },
-      ],
-      refresh: jest.fn(),
-    };
+    const readyState = buildReadyState([
+      buildPractice(),
+      buildPractice({
+        goalId: "goal-read",
+        name: "Read",
+        cadence: "daily",
+        expectedDurationMinutes: 20,
+        sessionCount: 5,
+        sessionTarget: 7,
+        sessionRemaining: 2,
+        sessionProgressRatio: 5 / 7,
+        minutesLogged: 100,
+        minutesTarget: 140,
+        minutesRemaining: 40,
+        minutesProgressRatio: 5 / 7,
+        currentStreak: 5,
+      }),
+    ]);
     mockUseCycleLanding.mockReturnValue(readyState);
 
     const screen = await render(<CycleLandingScreen />);
 
     expect(screen.getByText("Summer Focus")).toBeTruthy();
-    expect(screen.getByText("Day 24 / 30")).toBeTruthy();
-    expect(screen.getByText("6 days remaining")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Day 24 / 30. 6 days remaining."),
+    ).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(24);
     expect(screen.getByRole("button", { name: "Cycle day 24, today" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cycle day 25" })).toBeNull();
 
     expect(screen.getByText("Strength")).toBeTruthy();
     expect(screen.getByText("No streak yet")).toBeTruthy();
-    expect(screen.getByText("2/3 this week")).toBeTruthy();
+    expect(screen.getByText("2 of 3 · 1 remaining")).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: "Log Strength: 2 of 3 sessions this week.",
+        name: "Log Strength: 2 of 3 sessions this week; 1 remaining.",
       }),
     ).toBeTruthy();
 
     expect(screen.getByText("Read")).toBeTruthy();
     expect(screen.getByText("5 days streak")).toBeTruthy();
-    expect(screen.getByText("5/7 this week")).toBeTruthy();
+    expect(screen.getByText("5 of 7 · 2 remaining")).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: "Log Read: 5 of 7 sessions this week.",
+        name: "Log Read: 5 of 7 sessions this week; 2 remaining.",
       }),
     ).toBeTruthy();
+    expect(screen.getByRole("header", { name: "This week" })).toBeTruthy();
+    expect(screen.getByRole("header", { name: "Recent rhythm" })).toBeTruthy();
+    expect(screen.getByRole("header", { name: "Cycle contribution" })).toBeTruthy();
   });
 
   it("opens an elapsed calendar date in canonical Day history", async () => {
-    mockUseCycleLanding.mockReturnValue({
-      status: "ready",
-      header: {
-        cycleName: "Summer Focus",
-        dayLabel: "Day 24 / 30",
-        daysRemainingLabel: "6 days remaining",
-        overallProgressRatio: 5 / 24,
-      },
-      calendarDays: buildCalendarDays(),
-      goals: [],
-      refresh: jest.fn(),
-    } satisfies CycleLandingState);
+    mockUseCycleLanding.mockReturnValue(buildReadyState());
 
     const screen = await render(<CycleLandingScreen />);
     const user = userEvent.setup();
@@ -529,6 +612,62 @@ describe("CycleLandingScreen", () => {
 
     expect(mockPush).toHaveBeenCalledWith("/history?filter=day&date=2026-07-10");
     expect(screen.queryByRole("button", { name: "Cycle day 25" })).toBeNull();
+  });
+
+  it("labels met and partial practices without relying on color or minute targets", async () => {
+    const overTarget = buildPractice({
+      state: "met",
+      expectedDurationMinutes: null,
+      sessionCount: 4,
+      sessionTarget: 3,
+      sessionRemaining: 0,
+      sessionProgressRatio: 1,
+      minutesLogged: 0,
+      minutesTarget: null,
+      minutesRemaining: null,
+      minutesProgressRatio: null,
+    });
+    const partial = buildPractice({
+      goalId: "goal-added",
+      name: "Yoga",
+      membership: "partial",
+      state: "partial_week",
+      expectedDurationMinutes: null,
+      sessionCount: 1,
+      sessionTarget: null,
+      sessionRemaining: null,
+      sessionProgressRatio: null,
+      minutesLogged: 0,
+      minutesTarget: null,
+      minutesRemaining: null,
+      minutesProgressRatio: null,
+    });
+    mockUseCycleLanding.mockReturnValue(
+      buildReadyState([overTarget, partial], undefined, {
+        minutes: {
+          logged: 0,
+          target: null,
+          remaining: null,
+          progressRatio: null,
+        },
+        hasPartialMembership: true,
+      }),
+    );
+
+    const screen = await render(<CycleLandingScreen />);
+
+    expect(screen.getByText("4 of 3 · target met")).toBeTruthy();
+    expect(
+      screen.getByLabelText(
+        "1 session · partial week. Target not scored for a partial week.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "Log Yoga: partial week, 1 session logged; target not scored.",
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText(/weekly minute target/i)).toBeNull();
   });
 
   it("shows an empty state with a way to start a cycle when there is no active cycle", async () => {
@@ -608,31 +747,7 @@ describe("CycleLandingScreen", () => {
 
   it("logs the expected duration immediately and refreshes the landing data", async () => {
     const refresh = jest.fn();
-    mockUseCycleLanding.mockReturnValue({
-      status: "ready",
-      header: {
-        cycleName: "Summer Focus",
-        dayLabel: "Day 24 / 30",
-        daysRemainingLabel: "6 days remaining",
-        overallProgressRatio: 5 / 24,
-      },
-      calendarDays: buildCalendarDays(),
-      goals: [
-        {
-          goalId: "goal-strength",
-          name: "Strength",
-          streakLabel: "No streak yet",
-          weeklyProgressLabel: "2/3 this week",
-          weeklyProgressRatio: 2 / 3,
-          weeklySessionCount: 2,
-          weeklySessionTarget: 3,
-          weeklyMembership: "full",
-          todayLogs: [],
-          expectedDurationMinutes: 60,
-        },
-      ],
-      refresh,
-    } satisfies CycleLandingState);
+    mockUseCycleLanding.mockReturnValue(buildReadyState([buildPractice()], refresh));
     mockCreateSessionLog.mockResolvedValue({
       id: "log-1",
       cycleGoalId: "goal-strength",
@@ -647,7 +762,7 @@ describe("CycleLandingScreen", () => {
 
     await user.press(
       screen.getByRole("button", {
-        name: "Log Strength: 2 of 3 sessions this week.",
+        name: "Log Strength: 2 of 3 sessions this week; 1 remaining.",
       }),
     );
 
@@ -670,31 +785,7 @@ describe("CycleLandingScreen", () => {
 
   it("opens log details to choose a duration before saving", async () => {
     const refresh = jest.fn();
-    mockUseCycleLanding.mockReturnValue({
-      status: "ready",
-      header: {
-        cycleName: "Summer Focus",
-        dayLabel: "Day 24 / 30",
-        daysRemainingLabel: "6 days remaining",
-        overallProgressRatio: 5 / 24,
-      },
-      calendarDays: buildCalendarDays(),
-      goals: [
-        {
-          goalId: "goal-strength",
-          name: "Strength",
-          streakLabel: "No streak yet",
-          weeklyProgressLabel: "2/3 this week",
-          weeklyProgressRatio: 2 / 3,
-          weeklySessionCount: 2,
-          weeklySessionTarget: 3,
-          weeklyMembership: "full",
-          todayLogs: [],
-          expectedDurationMinutes: 60,
-        },
-      ],
-      refresh,
-    } satisfies CycleLandingState);
+    mockUseCycleLanding.mockReturnValue(buildReadyState([buildPractice()], refresh));
     mockCreateSessionLog.mockResolvedValue({
       id: "log-1",
       cycleGoalId: "goal-strength",

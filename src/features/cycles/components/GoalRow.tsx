@@ -6,22 +6,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, spacing } from "../../../design/tokens";
 import { LogSessionSheet } from "../../logging/components/LogSessionSheet";
 import { useLogSession } from "../../logging/hooks/useLogSession";
-import type { GoalWeekMembership } from "../domain/goalMembership";
+import type { HomeDashboardPractice } from "../domain/homeDashboard";
 import type { SessionLog } from "../domain/types";
 import { ProgressLine } from "./ProgressLine";
 
-export type GoalRowModel = {
-  goalId: string;
-  name: string;
-  streakLabel: string;
-  weeklyProgressLabel: string;
-  weeklyProgressRatio: number;
-  weeklySessionCount: number;
-  weeklySessionTarget: number;
-  weeklyMembership: GoalWeekMembership;
-  todayLogs: SessionLog[];
-  expectedDurationMinutes: number | null;
-};
+export type GoalRowModel = HomeDashboardPractice;
 
 export type GoalRowProps = {
   model: GoalRowModel;
@@ -42,14 +31,24 @@ export function GoalRow({
   const [quickLogError, setQuickLogError] = useState<string | null>(null);
   const quickLogInFlight = useRef(false);
   const { logSession, isPending } = useLogSession();
-  const targetMet =
-    model.weeklyMembership === "full" &&
-    model.weeklySessionCount >= model.weeklySessionTarget;
-  const sessionControlLabel = model.weeklyMembership === "partial"
-    ? `Log ${model.name}: partial week with ${model.weeklySessionCount} ${model.weeklySessionCount === 1 ? "session" : "sessions"}; target not scored.`
-    : targetMet
-      ? `${model.name}: weekly target met with ${model.weeklySessionCount} sessions. Log another session.`
-      : `Log ${model.name}: ${model.weeklySessionCount} of ${model.weeklySessionTarget} sessions this week.`;
+  const targetMet = model.state === "met";
+  const streakUnit = model.cadence === "daily" ? "day" : "week";
+  const streakLabel =
+    model.currentStreak === 0
+      ? "No streak yet"
+      : `${model.currentStreak} ${streakUnit}${model.currentStreak === 1 ? "" : "s"} streak`;
+  const progressLabel =
+    model.membership !== "full"
+      ? `${model.sessionCount} ${model.sessionCount === 1 ? "session" : "sessions"} · partial week`
+      : model.sessionRemaining === 0
+        ? `${model.sessionCount} of ${model.sessionTarget} · target met`
+        : `${model.sessionCount} of ${model.sessionTarget} · ${model.sessionRemaining} remaining`;
+  const sessionControlLabel =
+    model.membership !== "full"
+      ? `Log ${model.name}: partial week, ${model.sessionCount} ${model.sessionCount === 1 ? "session" : "sessions"} logged; target not scored.`
+      : targetMet
+        ? `${model.name}: weekly target met with ${model.sessionCount} sessions. Log another session.`
+        : `Log ${model.name}: ${model.sessionCount} of ${model.sessionTarget} sessions this week; ${model.sessionRemaining} remaining.`;
 
   async function handleQuickLog() {
     if (quickLogInFlight.current || isPending) {
@@ -92,25 +91,34 @@ export function GoalRow({
           style={[
             styles.sessionIndicator,
             targetMet ? styles.sessionIndicatorMet : null,
-            model.weeklySessionCount > 0 && !targetMet
+            model.sessionCount > 0 && !targetMet
               ? styles.sessionIndicatorInProgress
               : null,
           ]}
         >
           {targetMet ? (
             <Ionicons color={colors.inkOnDark} name="checkmark" size={18} />
-          ) : model.weeklySessionCount > 0 ? (
-            <Text style={styles.sessionControlCount}>{model.weeklySessionCount}</Text>
+          ) : model.sessionCount > 0 ? (
+            <Text style={styles.sessionControlCount}>{model.sessionCount}</Text>
           ) : null}
         </View>
       </Pressable>
       <View style={styles.info}>
         <Text style={styles.name}>{model.name}</Text>
-        <Text style={styles.streak}>{model.streakLabel}</Text>
-        <ProgressLine
-          ratio={model.weeklyProgressRatio}
-          label={model.weeklyProgressLabel}
-        />
+        <Text style={styles.streak}>{streakLabel}</Text>
+        {model.membership === "full" ? (
+          <ProgressLine
+            ratio={model.sessionProgressRatio ?? 0}
+            label={progressLabel}
+          />
+        ) : (
+          <Text
+            accessibilityLabel={`${progressLabel}. Target not scored for a partial week.`}
+            style={styles.partialProgress}
+          >
+            {progressLabel}
+          </Text>
+        )}
         {quickLogError ? <Text style={styles.error}>{quickLogError}</Text> : null}
       </View>
       <View style={styles.actions}>
@@ -139,7 +147,7 @@ export function GoalRow({
         onDismiss={() => setSheetVisible(false)}
         onLogged={onLogged}
         onUndoLog={onUndoLog}
-        todayLogs={model.todayLogs}
+        todayLogs={model.todaySessions}
         undoPending={isUndoPending}
       />
     </View>
@@ -193,6 +201,11 @@ const styles = StyleSheet.create({
   streak: {
     color: colors.mutedInk,
     fontSize: 13,
+  },
+  partialProgress: {
+    color: colors.verdigris,
+    fontSize: 13,
+    fontWeight: "600",
   },
   error: {
     color: "#8B3A3A",

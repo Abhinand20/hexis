@@ -4,19 +4,17 @@ import { useDatabase } from "../../../db/DatabaseProvider";
 import { createCycleRepository } from "../data/cycleRepository";
 import { createGoalRepository } from "../../goals/data/goalRepository";
 import { createSessionRepository } from "../../logging/data/sessionRepository";
-import {
-  calculateGoalStreak,
-  calculateGoalWeekProgress,
-  calendarDayIntensity,
-  goalConfigurationOn,
-} from "../domain/cycleProgress";
+import { calendarDayIntensity } from "../domain/cycleProgress";
 import {
   buildCycleSummary,
   type CycleAchievementSummary,
 } from "../domain/cycleSummary";
+import {
+  buildHomeDashboardSummary,
+  type HomeDashboardPractice,
+  type HomeDashboardSummary,
+} from "../domain/homeDashboard";
 import { addLocalDays, todayLocalDate } from "../domain/date";
-import type { GoalWeekMembership } from "../domain/goalMembership";
-import type { GoalCadence, SessionLog } from "../domain/types";
 
 export type CycleLandingCalendarDay = {
   localDate: string;
@@ -24,24 +22,10 @@ export type CycleLandingCalendarDay = {
   isToday: boolean;
 };
 
-export type CycleLandingGoalRow = {
-  goalId: string;
-  name: string;
-  streakLabel: string;
-  weeklyProgressLabel: string;
-  weeklyProgressRatio: number;
-  weeklySessionCount: number;
-  weeklySessionTarget: number;
-  weeklyMembership: GoalWeekMembership;
-  todayLogs: SessionLog[];
-  expectedDurationMinutes: number | null;
-};
-
 export type CycleLandingHeader = {
   cycleName: string;
   dayLabel: string;
   daysRemainingLabel: string;
-  overallProgressRatio: number;
 };
 
 export type CycleLandingState =
@@ -58,17 +42,10 @@ export type CycleLandingState =
       status: "ready";
       header: CycleLandingHeader;
       calendarDays: CycleLandingCalendarDay[];
-      goals: CycleLandingGoalRow[];
+      dashboard: HomeDashboardSummary;
+      actionablePractices: HomeDashboardPractice[];
       refresh: () => Promise<void>;
     };
-
-function formatStreakLabel(cadence: GoalCadence, streak: number): string {
-  if (streak === 0) {
-    return "No streak yet";
-  }
-  const unit = cadence === "daily" ? "day" : "week";
-  return `${streak} ${unit}${streak === 1 ? "" : "s"} streak`;
-}
 
 function formatDaysRemainingLabel(daysRemaining: number): string {
   if (daysRemaining <= 0) {
@@ -136,10 +113,15 @@ export function useCycleLanding(
       const revisionsByGoal = await Promise.all(
         goals.map((goal) => goalRepository.listRevisions(goal.id)),
       );
-      const revisionsByGoalId = new Map(
-        goals.map((goal, index) => [goal.id, revisionsByGoal[index]]),
-      );
+      const revisions = revisionsByGoal.flat();
       const logs = await createSessionRepository(db).listForCycle(cycleId);
+      const dashboard = buildHomeDashboardSummary({
+        cycle: activeCycle,
+        goals,
+        revisions,
+        effectiveLogs: logs,
+        today,
+      });
 
       const calendarDays: CycleLandingCalendarDay[] = Array.from(
         { length: activeCycle.durationDays },
@@ -160,53 +142,7 @@ export function useCycleLanding(
       const dayNumber = todayIndex + 1;
       const daysRemaining = activeCycle.durationDays - dayNumber;
 
-      const elapsedDays = calendarDays.slice(0, todayIndex + 1);
-      const activeDayCount = elapsedDays.filter((day) => day.intensity > 0).length;
-      const overallProgressRatio =
-        elapsedDays.length === 0 ? 0 : activeDayCount / elapsedDays.length;
-
-      const goalRows: CycleLandingGoalRow[] = activeGoals.map((goal) => {
-        const revisions = revisionsByGoalId.get(goal.id) ?? [];
-        const config = goalConfigurationOn(goal, revisions, today);
-        const progress = calculateGoalWeekProgress(
-          goal,
-          revisions,
-          logs,
-          today,
-          activeCycle,
-        );
-        const streak = calculateGoalStreak(
-          goal,
-          revisions,
-          logs,
-          today,
-          activeCycle,
-        );
-        const weeklyProgressRatio =
-          progress.membership !== "full" || progress.sessionTarget === 0
-            ? 0
-            : Math.min(1, progress.sessionCount / progress.sessionTarget);
-
-        return {
-          goalId: goal.id,
-          name: config.name,
-          // Use the goal's own (not revised) cadence: calculateGoalStreak
-          // branches on this same field internally.
-          streakLabel: formatStreakLabel(goal.cadence, streak),
-          weeklyProgressLabel:
-            progress.membership === "partial"
-              ? `Partial week · ${progress.sessionCount} ${progress.sessionCount === 1 ? "session" : "sessions"} logged`
-              : `${progress.sessionCount}/${progress.sessionTarget} this week`,
-          weeklyProgressRatio,
-          weeklySessionCount: progress.sessionCount,
-          weeklySessionTarget: progress.sessionTarget,
-          weeklyMembership: progress.membership,
-          todayLogs: logs
-            .filter((log) => log.cycleGoalId === goal.id && log.localDate === today)
-            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-          expectedDurationMinutes: config.expectedDurationMinutes,
-        };
-      });
+      const activeGoalIds = new Set(activeGoals.map((goal) => goal.id));
 
       setState({
         status: "ready",
@@ -214,10 +150,12 @@ export function useCycleLanding(
           cycleName: activeCycle.name,
           dayLabel: `Day ${dayNumber} / ${activeCycle.durationDays}`,
           daysRemainingLabel: formatDaysRemainingLabel(daysRemaining),
-          overallProgressRatio,
         },
         calendarDays,
-        goals: goalRows,
+        dashboard,
+        actionablePractices: dashboard.practices.filter((practice) =>
+          activeGoalIds.has(practice.goalId),
+        ),
         refresh: load,
       });
     } catch (err) {
