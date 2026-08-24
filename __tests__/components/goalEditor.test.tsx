@@ -3,6 +3,10 @@ import { userEvent } from "@testing-library/react-native";
 
 import EditGoalScreen from "../../app/cycles/[cycleId]/edit-goal/[goalId]";
 import type { Cycle, CycleGoal, GoalRevision } from "../../src/features/cycles/domain/types";
+import {
+  GoalEditor,
+  type GoalEditorValue,
+} from "../../src/features/goals/components/GoalEditor";
 import { createCycle } from "../../src/test/factories";
 
 const mockBack = jest.fn();
@@ -56,6 +60,13 @@ const strengthGoal: CycleGoal = {
   activeFromDate: "2026-07-01",
   inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
+};
+
+const editorValue: GoalEditorValue = {
+  name: "Strength",
+  cadence: "weekly",
+  weeklyTargetCount: 3,
+  expectedDurationMinutes: 60,
 };
 
 function formatLocalDate(date: Date): string {
@@ -192,4 +203,41 @@ it("shows an unavailable state when the active cycle id does not match", async (
     expect(screen.getByText("This cycle is no longer active.")).toBeTruthy();
   });
   expect(screen.queryByLabelText("Practice name")).toBeNull();
+});
+
+it("supports route-level helper, pending, error, and secondary-action states", async () => {
+  const secondaryAction = jest.fn();
+  const screen = await render(
+    <GoalEditor
+      helperText="Starts today. Earlier days stay unchanged."
+      initialValue={editorValue}
+      isSaving
+      mode="create"
+      onCancel={jest.fn()}
+      onSave={jest.fn()}
+      saveLabel="Add practice"
+      secondaryAction={{
+        label: "Stop tracking this practice",
+        onPress: secondaryAction,
+        accessibilityHint: "Keeps earlier activity in history",
+      }}
+      submitError="Couldn't save. Try again."
+    />,
+  );
+  const user = userEvent.setup();
+
+  expect(
+    screen.getByText("Starts today. Earlier days stay unchanged."),
+  ).toBeTruthy();
+  expect(screen.getByText("Couldn't save. Try again.")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+
+  const stopButton = screen.getByRole("button", {
+    name: "Stop tracking this practice",
+  });
+  expect(stopButton.props.accessibilityHint).toBe(
+    "Keeps earlier activity in history",
+  );
+  await user.press(stopButton);
+  expect(secondaryAction).toHaveBeenCalledTimes(1);
 });

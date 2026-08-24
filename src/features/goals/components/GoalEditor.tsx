@@ -26,6 +26,16 @@ export type GoalEditorProps = {
   initialValue: GoalEditorValue;
   onSave: (value: GoalEditorValue) => void;
   onCancel: () => void;
+  helperText?: string;
+  submitError?: string | null;
+  isSaving?: boolean;
+  saveLabel?: string;
+  secondaryAction?: {
+    label: string;
+    onPress: () => void;
+    disabled?: boolean;
+    accessibilityHint?: string;
+  };
 };
 
 function parsePositiveInt(raw: string): number | null {
@@ -45,6 +55,11 @@ export function GoalEditor({
   initialValue,
   onSave,
   onCancel,
+  helperText,
+  submitError,
+  isSaving = false,
+  saveLabel,
+  secondaryAction,
 }: GoalEditorProps) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(initialValue.name);
@@ -105,9 +120,9 @@ export function GoalEditor({
             {mode === "create" ? "Add practice" : "Edit practice"}
           </Text>
 
-          {mode === "editingActiveGoal" ? (
+          {helperText || mode === "editingActiveGoal" ? (
             <Text style={styles.helper}>
-              Applies from today; earlier logs are unchanged.
+              {helperText ?? "Applies from today; earlier logs are unchanged."}
             </Text>
           ) : null}
 
@@ -183,6 +198,30 @@ export function GoalEditor({
             <Text style={styles.validation}>{validationMessage}</Text>
           ) : null}
 
+          {submitError ? (
+            <Text accessibilityLiveRegion="polite" style={styles.validation}>
+              {submitError}
+            </Text>
+          ) : null}
+
+          {secondaryAction ? (
+            <Pressable
+              accessibilityHint={secondaryAction.accessibilityHint}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: secondaryAction.disabled }}
+              disabled={secondaryAction.disabled}
+              onPress={secondaryAction.onPress}
+              style={[
+                styles.destructiveButton,
+                secondaryAction.disabled ? styles.buttonDisabled : null,
+              ]}
+            >
+              <Text style={styles.destructiveButtonText}>
+                {secondaryAction.label}
+              </Text>
+            </Pressable>
+          ) : null}
+
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
@@ -193,11 +232,19 @@ export function GoalEditor({
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ disabled: isSaving }}
+              disabled={isSaving}
               onPress={handleSave}
-              style={styles.primaryButton}
+              style={[
+                styles.primaryButton,
+                isSaving ? styles.buttonDisabled : null,
+              ]}
             >
               <Text style={styles.primaryButtonText}>
-                {mode === "editingActiveGoal" ? "Save updates" : "Save"}
+                {isSaving
+                  ? "Saving…"
+                  : saveLabel ??
+                    (mode === "editingActiveGoal" ? "Save updates" : "Save")}
               </Text>
             </Pressable>
           </View>
@@ -289,6 +336,19 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.inkOnDark,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  buttonDisabled: {
+    opacity: 0.45,
+  },
+  destructiveButton: {
+    alignSelf: "flex-start",
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  destructiveButtonText: {
+    color: "#8B3A3A",
     fontSize: 15,
     fontWeight: "600",
   },
