@@ -116,7 +116,8 @@ function sumMinutes(logs: SessionLog[]): number {
 
 function latestFirst(left: SessionLog, right: SessionLog): number {
   return (
-    right.startedAt.localeCompare(left.startedAt) || left.id.localeCompare(right.id)
+    Date.parse(right.startedAt) - Date.parse(left.startedAt) ||
+    left.id.localeCompare(right.id)
   );
 }
 

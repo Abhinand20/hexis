@@ -166,6 +166,31 @@ describe("buildHomeDashboardSummary", () => {
     expect(summary.todaySessions).toEqual([]);
   });
 
+  it("orders today's sessions by instant when ISO timestamps use mixed offsets", () => {
+    const laterInstant = {
+      ...log("later", writeGoal.id, "2026-07-15", 30),
+      startedAt: "2026-07-15T09:00:00.000Z",
+    };
+    const earlierInstantWithLaterWallClock = {
+      ...log("earlier", writeGoal.id, "2026-07-15", 30),
+      startedAt: "2026-07-15T12:00:00.000+05:00",
+    };
+
+    const summary = build(
+      [writeGoal],
+      [earlierInstantWithLaterWallClock, laterInstant],
+    );
+
+    expect(summary.todaySessions.map((session) => session.id)).toEqual([
+      "later",
+      "earlier",
+    ]);
+    expect(summary.practices[0].todaySessions.map((session) => session.id)).toEqual([
+      "later",
+      "earlier",
+    ]);
+  });
+
   it("preserves over-target raw work while capping ratios and remaining at zero", () => {
     const overTarget = [
       log("1", strengthGoal.id, "2026-07-13", 70),
