@@ -34,6 +34,50 @@ All three must exit `0` before proceeding. These are fast, non-destructive,
 and don't require the device — run them first so a build attempt never wastes
 time on a codebase that wouldn't have passed CI anyway.
 
+## Feature regression pass on the iPhone
+
+Use at least one active cycle and two finished cycles (one completed and one
+ended early). Test local-date boundaries near midnight only when it is practical
+to do so; never change the phone's timezone while the app is open.
+
+### Historical corrections
+
+- Open an elapsed calendar day from Home and confirm History selects that day.
+- Add an activity with an explicit date and time, edit its practice/time/duration,
+  then delete it. Home and every History filter must reflect the effective state.
+- Confirm Previous/Next cannot move outside the selected cycle or into the future.
+
+### Practice membership
+
+- Add a practice from Settings and confirm it appears on Home today but not on
+  earlier History days. Stop a different pre-existing practice and confirm it
+  disappears from current logging while earlier logs remain editable.
+- Confirm the add/stop boundary week says **Partial week** and does not count the
+  partial practice toward targets met or remaining totals.
+- Attempt to stop the final active practice and confirm the app requires adding
+  another practice or ending the cycle.
+
+### Home dashboard
+
+- Check sparse, in-progress, target-met, over-target, count-only, and partial-week
+  states. Sessions/minutes remaining and the recent seven-day rhythm must remain
+  understandable without relying on color.
+- Quick-log one practice, then undo it. Weekly totals, practice progress, rhythm,
+  and calendar intensity must each refresh once in both directions.
+- Repeat the visual check with a large Dynamic Type setting and VoiceOver enabled.
+
+### Archive and repeat
+
+- Switch among active, completed, and early-ended cycles. Day/Week/Cycle bounds,
+  summaries, and correction tools must all switch together without changing the
+  active cycle.
+- Repeat a finished cycle, edit its name/duration/practices, and cancel once to
+  confirm no row is written. Then complete setup and confirm the new cycle/goals
+  have fresh identities and no copied sessions, revisions, membership dates, or
+  reminder settings.
+- With an active cycle present, open Repeat cycle and confirm setup can be
+  reviewed but Start explains the active-cycle conflict without writing.
+
 ## Generate (or refresh) the native iOS project
 
 ```bash

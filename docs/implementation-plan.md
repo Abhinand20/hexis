@@ -8,6 +8,8 @@
 
 **Architecture:** Expo Router owns navigation and screen composition. SQLite is the source of truth behind repositories for cycles, dated goal membership/configuration, immutable base session logs, and append-only session corrections. Pure domain functions resolve the effective records used for local-day boundaries, weekly progress, streaks, calendars, and dashboards; screens consume those functions through feature hooks.
 
+The shipped migration chain is V3 session timestamps → V4 append-only session corrections → V5 dated practice membership → V6 database-level single-active-cycle enforcement. Application database connections explicitly enable SQLite foreign-key enforcement before migrations and writes.
+
 **Tech Stack:** Expo, React Native, TypeScript, Expo Router, `expo-sqlite`, `expo-notifications`, `expo-glass-effect`, Jest, `jest-expo`, and React Native Testing Library.
 
 ## Global constraints

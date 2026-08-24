@@ -45,7 +45,7 @@ A cycle is a named, time-bounded commitment with:
 - A small selected set of practices
 - Immutable historical session logs
 
-The selected practice group is captured when the cycle begins. Version one does not add or remove practices mid-cycle. If the group itself needs to change, the person ends the cycle early and starts a new one. This preserves an understandable historical record.
+The initial practice group is captured when the cycle begins, but it may evolve without rewriting the past. A person can add a practice or stop tracking one during an active cycle; both changes take effect on the current local date. Every practice keeps inclusive `activeFromDate` and exclusive `inactiveFromDate` boundaries, so earlier days, targets, and logs retain their original membership context. At least one practice must remain active until the cycle ends.
 
 An active practice may still be updated. A returning user can edit its name, target frequency, or expected duration; the update takes effect from that local day forward. Earlier logs and their historical progress remain associated with the configuration that was active when they were recorded.
 
@@ -67,7 +67,8 @@ flowchart LR
 3. Review the complete commitment and start the cycle.
 4. Open the landing page to see `Day X / duration`, the contribution calendar, and every configured practice.
 5. Tap **Log** for the practice that was completed, choose a quick duration when relevant, and save.
-6. Review a compact weekly summary or cycle-complete summary.
+6. Use Home to see what remains this week and the recent seven-day rhythm.
+7. Review any cycle by day, week, or cycle, and optionally use a finished cycle to prefill the next setup flow.
 
 ## First-time onboarding
 
@@ -86,19 +87,20 @@ The UI should not ask for notification permission during onboarding. Request it 
 Hexis uses a persistent bottom tab bar with three tabs: **Home**, **History**, and **Settings**. Tabs are always visible, whether or not a cycle is active.
 
 - **Home** shows the active-cycle landing page; once the active cycle completes (naturally, or ended early) and no new cycle has replaced it, Home instead shows an achievement summary with a **Start a new cycle** action; a person who has never started a cycle sees a plain empty state with a **Start a cycle** action.
-- **History** reviews progress through a Day / Week / Cycle filter (see "Progress and insights" below). Version one scopes History to the current cycle — active or just completed — only; browsing multiple past cycles is a deferred follow-up.
-- **Settings** consolidates active-goal editing, the daily reminder (a toggle plus a time picker once enabled), and ending the current cycle early.
+- **History** reviews progress through a Day / Week / Cycle filter (see "Progress and insights" below). Its cycle selector can browse the active cycle and every completed or early-ended cycle without changing which cycle is active.
+- **Settings** consolidates adding, editing, or stopping active practices; the daily reminder (a toggle plus a time picker once enabled); and ending the current cycle early.
 
 Two flows are focused tasks rather than destinations, so they do not get their own tab: **cycle setup** (duration → practices → review) and **editing a goal**. Both present as a full-screen modal on top of the tab bar, with the tab bar hidden until the flow is dismissed. Within a modal, each step is a real navigation entry with a native header back button and the standard iOS edge-swipe-back gesture — a person can always retreat to the previous step or screen without losing entered data.
 
 ## Active cycle landing page
 
-The landing page replaces a traditional “today” checklist. It contains:
+The landing page replaces a traditional “today” checklist. Its hierarchy answers the most useful questions first:
 
-1. **Cycle header:** cycle name, `Day X / duration`, days remaining, and one thin overall progress line.
-2. **Cycle calendar:** a compact contribution-style grid with one mark per day. Mark size or intensity reflects how many practices were logged that day; the current day is visually identified. Past and current days open that date's History Day progress; future days remain unavailable.
-3. **Unified practice list:** no “due today” versus “other” grouping.
-4. **Practice rows:** habit name, streak, weekly progress bar and target total, and a direct **Log** action.
+1. **Cycle header:** cycle name, `Day X / duration`, and days remaining.
+2. **This week:** sessions and minutes logged, eligible targets and remaining effort, and calendar days left in the bounded week.
+3. **Recent rhythm:** seven local-day buckets plus a neutral session-count comparison with the preceding week.
+4. **Unified practice list:** stable user order, explicit remaining progress, current streak, and a direct **Log** action. A partial-membership week shows raw effort but is labelled instead of scored.
+5. **Cycle calendar:** secondary cycle context with one contribution mark per day. Past and current days open that date's History Day progress; future days remain unavailable.
 
 This model avoids falsely marking flexible weekly practices as overdue while keeping every configured practice visible.
 
@@ -108,8 +110,9 @@ The direct action is always **Log**, not a generic checkbox.
 
 1. Tap **Log** beside a practice to save a session immediately with its expected duration (or no duration for a count-only practice).
 2. Tap **Details** instead to choose a quick duration before saving.
-3. A session records the actual current time at save; version one does not offer a date/time picker, notes, or post-save edits.
-4. Return to the landing page with refreshed progress, calendar intensity, and streak.
+3. A live session records the actual current time at save.
+4. History Day can add an activity at an earlier date/time or edit/delete an existing activity. These operations append correction records; they never overwrite or physically remove the base log.
+5. Return to Home with weekly metrics, recent rhythm, calendar intensity, and streak refreshed from effective session state.
 
 Practices without a duration target may still log a session with no duration. The app should never require an in-app timer.
 
@@ -123,7 +126,7 @@ Practices without a duration target may still log a session with no duration. Th
 
 ### History: Day filter
 
-For a selected local date, shows total sessions and minutes plus each configured practice's status — logged or not, and minutes logged versus its expected duration when applicable. Bounded Previous/Next controls move between dates in the current cycle, so the view is a browsable daily ledger rather than a today-only summary. A chronological session list and calendar deep-link remain part of the calendar day-progress follow-up.
+For a selected local date, shows total sessions and minutes, a chronological activity timeline, and every practice that participated on that date. Bounded Previous/Next controls move within the selected cycle. Timeline rows can be corrected or deleted, and **Add activity** can backfill a valid elapsed date. Practice choices follow membership on the editor's date; an existing same-day session remains correctable after its practice is stopped.
 
 ### History: Week filter
 
@@ -153,12 +156,13 @@ The metrics remain descriptive rather than evaluative: target progress is capped
 | Entity | Purpose | Key fields |
 | --- | --- | --- |
 | `Cycle` | A bounded focus period | id, name, startDate, durationDays, endDate, status |
-| `CycleGoal` | A practice captured in a cycle | id, cycleId, name, cadence, weeklyTargetCount, expectedDurationMinutes |
+| `CycleGoal` | A dated practice membership captured in a cycle | id, cycleId, name, cadence, weeklyTargetCount, expectedDurationMinutes, activeFromDate, inactiveFromDate |
 | `GoalRevision` | A forward-only update to a cycle goal | id, cycleGoalId, effectiveDate, changed target/configuration fields |
-| `SessionLog` | An immutable completed session | id, cycleGoalId, localDate, startedAt (captured automatically at save), durationMinutes, createdAt |
+| `SessionLog` | An immutable base completed session | id, cycleGoalId, localDate, startedAt, durationMinutes, createdAt |
+| `SessionCorrection` | An append-only replacement or tombstone for a base session | id, sessionLogId, replacement fields or deleted marker, createdAt |
 | `ReminderSettings` | Optional app-level local reminder | enabled, localTime, notificationIdentifier |
 
-Progress is derived from logs and effective goal configuration. It is not stored as a duplicate aggregate.
+Progress is derived from effective sessions, dated membership, and effective goal configuration. It is not stored as a duplicate aggregate.
 
 A cycle's `status` moves from `active` to `completed` automatically the next time the app reads cycle state after its `endDate` has passed — there is no background job, since Hexis is local-only and only needs to notice on next open.
 
@@ -195,10 +199,13 @@ Included:
 - Persistent bottom tab navigation (Home, History, Settings) with modal-presented setup and goal-editing flows, native back, and swipe-back
 - Automatic active-to-completed cycle transition once the end date passes, with a Home completion summary and a **Start a new cycle** action
 - Editable templates and custom practices before cycle start
+- Forward-only add/stop practice membership during an active cycle
 - Daily and weekly count/duration targets
 - Direct session logging with quick duration choices
-- Unified practice list, streaks, weekly progress, and active-cycle calendar
-- Day/Week/Cycle progress review and cycle-complete summaries, scoped to the current cycle
+- Historical activity add/edit/delete through append-only corrections
+- Weekly remaining effort, recent rhythm, unified practice list, streaks, and cycle calendar
+- Day/Week/Cycle progress review across the full cycle archive
+- Repeat-cycle setup prefilled from the final active configuration of a completed or early-ended cycle
 - Returning-user forward-only goal edits
 - One optional app-level daily reminder with a time picker
 - Local SQLite persistence
@@ -212,7 +219,6 @@ Explicitly excluded:
 - Social sharing, leaderboards, and challenges
 - AI coaching or adaptive recommendations
 - Payments, subscriptions, and web/Android versions
-- Browsing multiple past (completed) cycles at once — v1 keeps History scoped to the current cycle; a cross-cycle history browser is a deferred follow-up
 
 ## Success criteria
 
@@ -220,6 +226,8 @@ Hexis succeeds when a person can:
 
 1. Start a default 30-day cycle in under two minutes.
 2. Log a session from the landing page in under five seconds after opening the app.
-3. Understand active-cycle progress without navigating away from the landing page.
-4. See reliable weekly and cycle history even after modifying a practice.
-5. Use the entire app offline, without creating an account.
+3. State the sessions and minutes remaining this week and recognize the recent seven-day rhythm without leaving Home.
+4. Correct an earlier activity without losing its audit trail.
+5. Add or stop a practice without changing prior-day targets or history.
+6. Browse and repeat earlier cycles without copying their logs or identifiers.
+7. Use the entire app offline, without creating an account.
