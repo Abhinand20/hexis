@@ -49,6 +49,17 @@ function mapCycle(row: CycleRow): Cycle {
   };
 }
 
+function isSingleActiveCycleConstraint(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("cycles_single_active") ||
+    error.message.includes("UNIQUE constraint failed: cycles.status")
+  );
+}
+
 export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
   const repository: CycleRepository = {
     async createCycle(input) {
@@ -70,42 +81,49 @@ export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
         createdAt,
       };
 
-      await db.withTransactionAsync(async () => {
-        await db.runAsync(
-          `INSERT INTO cycles (id, name, start_date, duration_days, end_date, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [
-            cycle.id,
-            cycle.name,
-            cycle.startDate,
-            cycle.durationDays,
-            cycle.endDate,
-            cycle.status,
-            cycle.createdAt,
-          ],
-        );
-
-        for (const goal of input.goals) {
+      try {
+        await db.withTransactionAsync(async () => {
           await db.runAsync(
-            `INSERT INTO cycle_goals (
-              id, cycle_id, name, cadence, weekly_target_count,
-              expected_duration_minutes, active_from_date,
-              inactive_from_date, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO cycles (id, name, start_date, duration_days, end_date, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
-              generateId("goal"),
               cycle.id,
-              goal.name,
-              goal.cadence,
-              goal.weeklyTargetCount,
-              goal.expectedDurationMinutes,
+              cycle.name,
               cycle.startDate,
-              null,
-              createdAt,
+              cycle.durationDays,
+              cycle.endDate,
+              cycle.status,
+              cycle.createdAt,
             ],
           );
+
+          for (const goal of input.goals) {
+            await db.runAsync(
+              `INSERT INTO cycle_goals (
+                id, cycle_id, name, cadence, weekly_target_count,
+                expected_duration_minutes, active_from_date,
+                inactive_from_date, created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                generateId("goal"),
+                cycle.id,
+                goal.name,
+                goal.cadence,
+                goal.weeklyTargetCount,
+                goal.expectedDurationMinutes,
+                cycle.startDate,
+                null,
+                createdAt,
+              ],
+            );
+          }
+        });
+      } catch (error) {
+        if (isSingleActiveCycleConstraint(error)) {
+          throw new Error("An active cycle already exists");
         }
-      });
+        throw error;
+      }
 
       return cycle;
     },
@@ -168,16 +186,21 @@ export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
         throw new Error(`Cycle not found: ${cycleId}`);
       }
 
-      if (localDate < row.end_date) {
-        await db.runAsync(
-          "UPDATE cycles SET status = 'ended_early', end_date = ? WHERE id = ?",
-          [localDate, cycleId],
-        );
-      } else {
-        await db.runAsync(
-          "UPDATE cycles SET status = 'ended_early' WHERE id = ?",
-          [cycleId],
-        );
+      if (row.status !== "active") {
+        throw new Error("Only an active cycle can be ended early");
+      }
+      if (localDate < row.start_date || localDate > row.end_date) {
+        throw new Error("The end date must fall within the cycle");
+      }
+
+      const result = await db.runAsync(
+        `UPDATE cycles
+         SET status = 'ended_early', end_date = ?
+         WHERE id = ? AND status = 'active'`,
+        [localDate, cycleId],
+      );
+      if (result.changes !== 1) {
+        throw new Error("Only an active cycle can be ended early");
       }
     },
   };

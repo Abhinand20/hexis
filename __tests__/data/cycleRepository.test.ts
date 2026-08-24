@@ -39,6 +39,21 @@ describe("cycle, goal, and session repositories", () => {
     expect(goals.every((goal) => goal.inactiveFromDate === null)).toBe(true);
   });
 
+  it("rejects another active cycle with a stable repository error", async () => {
+    await cycleRepository.createCycle(
+      createCycleInput({ name: "First", startDate: "2026-08-01" }),
+    );
+
+    await expect(
+      cycleRepository.createCycle(
+        createCycleInput({ name: "Second", startDate: "2026-08-01" }),
+      ),
+    ).rejects.toThrow("An active cycle already exists");
+    expect(
+      await db.getFirstAsync("SELECT COUNT(*) AS count FROM cycles WHERE status = 'active'"),
+    ).toEqual({ count: 1 });
+  });
+
   it("rejects a revision effectiveDate before the cycle startDate", async () => {
     const cycle = await cycleRepository.createCycle(createCycleInput());
     const [goal] = await goalRepository.listForCycle(cycle.id);
@@ -155,6 +170,22 @@ describe("cycle, goal, and session repositories", () => {
       [cycle.id],
     );
     expect(row).toEqual({ status: "ended_early", end_date: "2026-07-10" });
+
+    await expect(
+      cycleRepository.endCycleEarly(cycle.id, "2026-07-11"),
+    ).rejects.toThrow(/only an active cycle/i);
+  });
+
+  it("rejects an early-end date outside the active cycle", async () => {
+    const cycle = await cycleRepository.createCycle(createCycleInput());
+
+    await expect(
+      cycleRepository.endCycleEarly(cycle.id, "2026-06-30"),
+    ).rejects.toThrow(/must fall within the cycle/i);
+    await expect(
+      cycleRepository.endCycleEarly(cycle.id, "2026-07-31"),
+    ).rejects.toThrow(/must fall within the cycle/i);
+    await expect(cycleRepository.getCycleById(cycle.id)).resolves.toEqual(cycle);
   });
 
   it("transitions an active cycle to completed once its end date has passed, and allows a new cycle afterward", async () => {

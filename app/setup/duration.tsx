@@ -97,9 +97,12 @@ export default function DurationScreen() {
 
     async function loadRepeatDraft() {
       try {
-        const cycle = await createCycleRepository(database).getCycleById(
-          sourceCycleId,
-        );
+        const cycleRepository = createCycleRepository(database);
+        // Finalize a naturally elapsed active row before judging whether the
+        // selected source is eligible to repeat. Direct archive reads remain
+        // intentionally non-mutating.
+        await cycleRepository.getActiveCycle();
+        const cycle = await cycleRepository.getCycleById(sourceCycleId);
         if (!cycle) {
           throw new Error("The cycle you chose could not be found.");
         }

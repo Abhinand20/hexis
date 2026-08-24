@@ -1,5 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 
+import { openDatabase } from "../../src/db/client";
 import { runMigrations } from "../../src/db/migrations";
 import {
   SCHEMA_V1,
@@ -60,7 +61,7 @@ it("backfills V2 session start timestamps from their creation timestamps", async
   await runMigrations(db);
 
   expect(await db.getFirstAsync("PRAGMA user_version")).toEqual({
-    user_version: 5,
+    user_version: 6,
   });
   expect(
     await db.getFirstAsync(
@@ -142,7 +143,7 @@ it("adds revision storage without changing existing V3 session facts", async () 
   await runMigrations(db);
 
   expect(await db.getFirstAsync("PRAGMA user_version")).toEqual({
-    user_version: 5,
+    user_version: 6,
   });
   expect(
     await db.getFirstAsync(
@@ -239,7 +240,7 @@ it("upgrades a real V4 database and backfills membership without changing revisi
   await runMigrations(db);
 
   expect(await db.getFirstAsync("PRAGMA user_version")).toEqual({
-    user_version: 5,
+    user_version: 6,
   });
   expect(
     await db.getFirstAsync(
@@ -271,4 +272,55 @@ it("upgrades a real V4 database and backfills membership without changing revisi
        WHERE "from" = 'cycle_id'`,
     ),
   ).toEqual({ table: "cycles" });
+});
+
+it("enforces foreign keys on application database connections", async () => {
+  const db = await openDatabase(":memory:");
+
+  expect(await db.getFirstAsync("PRAGMA foreign_keys")).toEqual({
+    foreign_keys: 1,
+  });
+  expect(await db.getAllAsync("PRAGMA foreign_key_check")).toEqual([]);
+
+  await expect(
+    db.runAsync(
+      `INSERT INTO cycle_goals (
+        id, cycle_id, name, cadence, weekly_target_count,
+        expected_duration_minutes, active_from_date,
+        inactive_from_date, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "orphan-goal",
+        "missing-cycle",
+        "Orphan",
+        "weekly",
+        1,
+        null,
+        "2026-08-01",
+        null,
+        "2026-08-01T00:00:00.000Z",
+      ],
+    ),
+  ).rejects.toThrow();
+});
+
+it("adds a database-level single-active-cycle invariant", async () => {
+  const db = await openDatabase(":memory:");
+  const activeRow = (
+    id: string,
+    name: string,
+    startDate: string,
+    endDate: string,
+  ) =>
+    db.runAsync(
+      `INSERT INTO cycles (
+        id, name, start_date, duration_days, end_date, status, created_at
+      ) VALUES (?, ?, ?, ?, ?, 'active', ?)`,
+      [id, name, startDate, 30, endDate, `${startDate}T00:00:00.000Z`],
+    );
+
+  await activeRow("active-1", "First", "2026-08-01", "2026-08-30");
+  await expect(
+    activeRow("active-2", "Second", "2026-09-01", "2026-09-30"),
+  ).rejects.toThrow();
 });

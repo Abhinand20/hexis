@@ -12,6 +12,10 @@ export async function openDatabase(
 ): Promise<SQLiteDatabase> {
   const db = await openDatabaseAsync(name);
   await db.execAsync("PRAGMA journal_mode = WAL;");
+  // SQLite leaves foreign-key enforcement disabled per connection unless the
+  // application opts in. Enable it before migrations or repository writes so
+  // the REFERENCES clauses in every schema version are real invariants.
+  await db.execAsync("PRAGMA foreign_keys = ON;");
   await runMigrations(db);
   return db;
 }

@@ -5,6 +5,7 @@ import {
   SCHEMA_V3,
   SCHEMA_V4,
   SCHEMA_V5,
+  SCHEMA_V6,
 } from "./schema";
 
 const MIGRATIONS: string[][] = [
@@ -13,6 +14,7 @@ const MIGRATIONS: string[][] = [
   SCHEMA_V3,
   SCHEMA_V4,
   SCHEMA_V5,
+  SCHEMA_V6,
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {

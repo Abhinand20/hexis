@@ -95,3 +95,9 @@ SET active_from_date = (
   `CREATE INDEX cycle_goals_cycle_membership
 ON cycle_goals(cycle_id, active_from_date, inactive_from_date)`,
 ];
+
+export const SCHEMA_V6: string[] = [
+  `CREATE UNIQUE INDEX cycles_single_active
+ON cycles(status)
+WHERE status = 'active'`,
+];
