@@ -321,6 +321,22 @@ describe("HistoryScreen", () => {
     });
   });
 
+  it("labels boundary-week work without counting it as an eligible target", async () => {
+    const addedRead = { ...readGoal, activeFromDate: "2026-07-22" };
+    mockUseCycleHistory.mockReturnValue(
+      readyState({
+        goals: [addedRead],
+        logs: [logOn(addedRead.id, "2026-07-23", 20)],
+      }),
+    );
+
+    const screen = await render(<HistoryScreen />);
+
+    expect(screen.getByText(/Partial week/)).toBeTruthy();
+    expect(screen.getByText("0/0")).toBeTruthy();
+    expect(screen.getByText("Read reached 1 of 7 sessions")).toBeTruthy();
+  });
+
   it("switches to the Day filter for today's practices", async () => {
     mockUseCycleHistory.mockReturnValue(readyState());
     const user = userEvent.setup();

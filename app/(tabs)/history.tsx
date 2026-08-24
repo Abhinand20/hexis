@@ -30,6 +30,7 @@ import {
   todayLocalDate,
   weekStart,
 } from "../../src/features/cycles/domain/date";
+import { isGoalActiveOn } from "../../src/features/cycles/domain/goalMembership";
 import type {
   Cycle,
   CycleGoal,
@@ -238,7 +239,10 @@ export default function HistoryScreen() {
   const currentWeek = weekPointer ?? maxWeekStart;
   const statusLabel = cycle.status === "active" ? "Active cycle" : "Completed cycle";
 
-  const openAddEditor = (localDate: string, practiceId = goals[0]?.id ?? "") => {
+  const openAddEditor = (
+    localDate: string,
+    practiceId = goals.find((goal) => isGoalActiveOn(goal, localDate))?.id ?? "",
+  ) => {
     activityMutation.clearError();
     setEditorLocalError(null);
     setEditor({
@@ -323,6 +327,7 @@ export default function HistoryScreen() {
           startedTime: localClockTimeForInstant(editor.session.startedAt),
           durationMinutes: editor.session.durationMinutes,
         };
+  const grandfatheredSession = editor?.mode === "edit" ? editor.session : null;
 
   return (
     <>
@@ -423,10 +428,21 @@ export default function HistoryScreen() {
         <ActivityEditorSheet
           mode={editor!.mode}
           visible
-          practices={goals.map((goal) => ({
-            id: goal.id,
-            name: goalConfigurationOn(goal, revisions, editorInitialValue.localDate).name,
-          }))}
+          practices={[]}
+          practicesForDate={(localDate) =>
+            goals
+              .filter(
+                (goal) =>
+                  isGoalActiveOn(goal, localDate) ||
+                  (grandfatheredSession !== null &&
+                    goal.id === grandfatheredSession.cycleGoalId &&
+                    localDate === grandfatheredSession.localDate),
+              )
+              .map((goal) => ({
+                id: goal.id,
+                name: goalConfigurationOn(goal, revisions, localDate).name,
+              }))
+          }
           initialValue={editorInitialValue}
           minDate={cycle.startDate}
           maxDate={upperBoundDate}
@@ -597,13 +613,22 @@ function WeekFilterView({
   onPrevious: () => void;
   onNext: () => void;
 }) {
-  const summary = buildWeekSummary(goals, revisions, logs, currentWeek);
+  const summary = buildWeekSummary(goals, revisions, logs, currentWeek, cycle);
   const previousSummary = currentWeek > minWeekStart
-    ? buildWeekSummary(goals, revisions, logs, addLocalDays(currentWeek, -7))
+    ? buildWeekSummary(
+        goals,
+        revisions,
+        logs,
+        addLocalDays(currentWeek, -7),
+        cycle,
+      )
     : null;
   const prevDisabled = currentWeek <= minWeekStart;
   const nextDisabled = currentWeek >= maxWeekStart;
-  const reachedTargetCount = summary.practiceProgress.filter((practice) => practice.met).length;
+  const eligiblePractices = summary.practiceProgress.filter(
+    (practice) => practice.membership === "full",
+  );
+  const reachedTargetCount = eligiblePractices.filter((practice) => practice.met).length;
   const sessionDelta = previousSummary
     ? summary.sessionCount - previousSummary.sessionCount
     : null;
@@ -641,7 +666,7 @@ function WeekFilterView({
         <MetricCard value={String(summary.sessionCount)} label="sessions" />
         <MetricCard value={formatMinutes(summary.minutesLogged)} label="logged" />
         <MetricCard
-          value={`${reachedTargetCount}/${summary.practiceProgress.length}`}
+          value={`${reachedTargetCount}/${eligiblePractices.length}`}
           label="targets reached"
         />
       </View>
@@ -721,6 +746,11 @@ function WeekPracticeCard({ practice }: { practice: WeekPracticeProgress }) {
       <Text style={styles.practiceLine}>
         {practice.name} reached {practice.sessionCount} of {practice.sessionTarget} sessions
       </Text>
+      {practice.membership === "partial" ? (
+        <Text style={styles.practiceMeta}>
+          Partial week · sessions and minutes shown, target not scored
+        </Text>
+      ) : null}
       <ProgressMeter
         ratio={ratio}
         label={`${practice.name}: ${practice.sessionCount} of ${practice.sessionTarget} sessions`}

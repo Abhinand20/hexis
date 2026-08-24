@@ -88,7 +88,7 @@ const originalSession = {
   createdAt: "2026-08-20T23:30:00.000Z",
 };
 
-function readyState(): CycleHistoryState {
+function readyState(): Extract<CycleHistoryState, { status: "ready" }> {
   return {
     status: "ready",
     cycle: createCycle({
@@ -233,4 +233,48 @@ it("keeps bounds and repository failures visible so an add can be retried", asyn
   mockCreate.mockResolvedValue({ ...originalSession, id: "log-retry" });
   await act(async () => pressModalSave(screen, "Add activity"));
   await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(2));
+});
+
+it("updates add-activity practices when the draft date crosses membership boundaries", async () => {
+  mockUseCycleHistory.mockReturnValue({
+    ...readyState(),
+    goals: [
+      { ...strengthGoal, inactiveFromDate: "2026-08-15" },
+      { ...readGoal, activeFromDate: "2026-08-18" },
+    ],
+  } satisfies CycleHistoryState);
+  const screen = await render(<HistoryScreen />);
+  const user = userEvent.setup();
+
+  await user.press(screen.getByRole("button", { name: "Add activity" }));
+  expect(screen.queryByRole("radio", { name: "Strength" })).toBeNull();
+  expect(screen.getByRole("radio", { name: "Read" })).toBeChecked();
+
+  await user.clear(screen.getByLabelText("Activity date"));
+  await user.type(screen.getByLabelText("Activity date"), "2026-08-10");
+
+  expect(screen.getByRole("radio", { name: "Strength" })).toBeTruthy();
+  expect(screen.queryByRole("radio", { name: "Read" })).toBeNull();
+});
+
+it("grandfathers an inactive source practice only for an in-place correction", async () => {
+  mockUseCycleHistory.mockReturnValue({
+    ...readyState(),
+    goals: [
+      { ...strengthGoal, inactiveFromDate: "2026-08-15" },
+      { ...readGoal, activeFromDate: "2026-08-18" },
+    ],
+  } satisfies CycleHistoryState);
+  const screen = await render(<HistoryScreen />);
+  const user = userEvent.setup();
+
+  await user.press(screen.getByRole("button", { name: /Edit Strength activity/i }));
+  expect(screen.getByRole("radio", { name: "Strength" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Read" })).toBeTruthy();
+
+  await user.clear(screen.getByLabelText("Activity date"));
+  await user.type(screen.getByLabelText("Activity date"), "2026-08-21");
+
+  expect(screen.queryByRole("radio", { name: "Strength" })).toBeNull();
+  expect(screen.getByRole("radio", { name: "Read" })).toBeTruthy();
 });

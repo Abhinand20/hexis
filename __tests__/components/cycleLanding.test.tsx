@@ -50,6 +50,7 @@ describe("CycleCalendar", () => {
 const mockGetActiveCycle = jest.fn();
 const mockGetMostRecentCycle = jest.fn();
 const mockListForCycle = jest.fn();
+const mockListActiveForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
 const mockCreateSessionLog = jest.fn();
@@ -85,6 +86,7 @@ jest.mock("../../src/features/cycles/data/cycleRepository", () => ({
 jest.mock("../../src/features/goals/data/goalRepository", () => ({
   createGoalRepository: () => ({
     listForCycle: (...args: unknown[]) => mockListForCycle(...args),
+    listActiveForCycle: (...args: unknown[]) => mockListActiveForCycle(...args),
     listRevisions: (...args: unknown[]) => mockListRevisions(...args),
   }),
 }));
@@ -135,12 +137,16 @@ beforeEach(() => {
   mockGetActiveCycle.mockReset();
   mockGetMostRecentCycle.mockReset();
   mockListForCycle.mockReset();
+  mockListActiveForCycle.mockReset();
   mockListRevisions.mockReset();
   mockListSessionLogs.mockReset();
   mockCreateSessionLog.mockReset();
   mockDeleteSessionLog.mockReset();
   mockImpactAsync.mockReset();
   mockListRevisions.mockResolvedValue([]);
+  mockListActiveForCycle.mockImplementation((...args: unknown[]) =>
+    mockListForCycle(...args),
+  );
   mockGetMostRecentCycle.mockResolvedValue(null);
   mockImpactAsync.mockResolvedValue(undefined);
   mockDeleteSessionLog.mockResolvedValue(undefined);
@@ -201,6 +207,7 @@ describe("useCycleLanding", () => {
         weeklyProgressRatio: 2 / 3,
         weeklySessionCount: 2,
         weeklySessionTarget: 3,
+        weeklyMembership: "full",
         todayLogs: [],
         expectedDurationMinutes: 60,
       },
@@ -212,12 +219,58 @@ describe("useCycleLanding", () => {
         weeklyProgressRatio: 5 / 7,
         weeklySessionCount: 5,
         weeklySessionTarget: 7,
+        weeklyMembership: "full",
         todayLogs: [
           logOn("goal-read", "2026-07-24", 20),
         ],
         expectedDurationMinutes: 20,
       },
     ]);
+  });
+
+  it("shows only date-active practices while retaining stopped practices in the calendar", async () => {
+    const stoppedStrength = {
+      ...strengthGoal,
+      inactiveFromDate: "2026-07-24",
+    };
+    const addedRead = {
+      ...readGoal,
+      activeFromDate: "2026-07-24",
+    };
+    mockGetActiveCycle.mockResolvedValue(
+      createCycle({
+        id: "cycle-1",
+        startDate: "2026-07-01",
+        durationDays: 30,
+        endDate: "2026-07-30",
+      }),
+    );
+    mockListForCycle.mockResolvedValue([stoppedStrength, addedRead]);
+    mockListActiveForCycle.mockResolvedValue([addedRead]);
+    mockListSessionLogs.mockResolvedValue([
+      logOn("goal-strength", "2026-07-23", 60),
+    ]);
+
+    const { result } = await renderHook(() => useCycleLanding("2026-07-24"));
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    if (result.current.status !== "ready") {
+      throw new Error("expected ready state");
+    }
+
+    expect(mockListActiveForCycle).toHaveBeenCalledWith("cycle-1", "2026-07-24");
+    expect(result.current.goals.map((goal) => goal.goalId)).toEqual(["goal-read"]);
+    expect(result.current.goals[0]).toEqual(
+      expect.objectContaining({
+        weeklyMembership: "partial",
+        weeklyProgressLabel: "Partial week · 0 sessions logged",
+        weeklyProgressRatio: 0,
+      }),
+    );
+    expect(
+      result.current.calendarDays.find((day) => day.localDate === "2026-07-23")
+        ?.intensity,
+    ).toBeGreaterThan(0);
   });
 
   it("is empty when no cycle has ever existed", async () => {
@@ -406,6 +459,7 @@ describe("CycleLandingScreen", () => {
           weeklyProgressRatio: 2 / 3,
           weeklySessionCount: 2,
           weeklySessionTarget: 3,
+          weeklyMembership: "full",
           todayLogs: [],
           expectedDurationMinutes: 60,
         },
@@ -417,6 +471,7 @@ describe("CycleLandingScreen", () => {
           weeklyProgressRatio: 5 / 7,
           weeklySessionCount: 5,
           weeklySessionTarget: 7,
+          weeklyMembership: "full",
           todayLogs: [],
           expectedDurationMinutes: 20,
         },
@@ -571,6 +626,7 @@ describe("CycleLandingScreen", () => {
           weeklyProgressRatio: 2 / 3,
           weeklySessionCount: 2,
           weeklySessionTarget: 3,
+          weeklyMembership: "full",
           todayLogs: [],
           expectedDurationMinutes: 60,
         },
@@ -632,6 +688,7 @@ describe("CycleLandingScreen", () => {
           weeklyProgressRatio: 2 / 3,
           weeklySessionCount: 2,
           weeklySessionTarget: 3,
+          weeklyMembership: "full",
           todayLogs: [],
           expectedDurationMinutes: 60,
         },

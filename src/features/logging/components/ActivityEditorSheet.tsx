@@ -34,6 +34,12 @@ export type ActivityEditorSheetProps = {
   mode: ActivityEditorMode;
   visible: boolean;
   practices: ActivityEditorPractice[];
+  /**
+   * Supplies the practices available for the draft date. History uses this
+   * when membership changes during a cycle; callers with a fixed list can
+   * continue to pass only `practices`.
+   */
+  practicesForDate?: (localDate: string) => ActivityEditorPractice[];
   initialValue: ActivityEditorValue;
   minDate: string;
   maxDate: string;
@@ -123,6 +129,7 @@ export function ActivityEditorSheet({
   mode,
   visible,
   practices,
+  practicesForDate,
   initialValue,
   minDate,
   maxDate,
@@ -168,6 +175,7 @@ export function ActivityEditorSheet({
     return null;
   }
 
+  const availablePractices = practicesForDate?.(localDate) ?? practices;
   const mutationPending = isSaving || isDeleting;
   const title = mode === "add" ? "Add activity" : "Edit activity";
 
@@ -177,7 +185,13 @@ export function ActivityEditorSheet({
 
   function handleSave() {
     const draft = { practiceId, localDate, startedTime };
-    const nextErrors = validate(draft, durationInput, practices, minDate, maxDate);
+    const nextErrors = validate(
+      draft,
+      durationInput,
+      availablePractices,
+      minDate,
+      maxDate,
+    );
     setValidationErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0 || mutationPending) {
@@ -248,7 +262,7 @@ export function ActivityEditorSheet({
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Practice</Text>
               <View accessibilityRole="radiogroup" style={styles.practiceOptions}>
-                {practices.map((practice) => {
+                {availablePractices.map((practice) => {
                   const selected = practice.id === practiceId;
                   return (
                     <Pressable

@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, spacing } from "../../../design/tokens";
 import { LogSessionSheet } from "../../logging/components/LogSessionSheet";
 import { useLogSession } from "../../logging/hooks/useLogSession";
+import type { GoalWeekMembership } from "../domain/goalMembership";
 import type { SessionLog } from "../domain/types";
 import { ProgressLine } from "./ProgressLine";
 
@@ -17,6 +18,7 @@ export type GoalRowModel = {
   weeklyProgressRatio: number;
   weeklySessionCount: number;
   weeklySessionTarget: number;
+  weeklyMembership: GoalWeekMembership;
   todayLogs: SessionLog[];
   expectedDurationMinutes: number | null;
 };
@@ -40,10 +42,14 @@ export function GoalRow({
   const [quickLogError, setQuickLogError] = useState<string | null>(null);
   const quickLogInFlight = useRef(false);
   const { logSession, isPending } = useLogSession();
-  const targetMet = model.weeklySessionCount >= model.weeklySessionTarget;
-  const sessionControlLabel = targetMet
-    ? `${model.name}: weekly target met with ${model.weeklySessionCount} sessions. Log another session.`
-    : `Log ${model.name}: ${model.weeklySessionCount} of ${model.weeklySessionTarget} sessions this week.`;
+  const targetMet =
+    model.weeklyMembership === "full" &&
+    model.weeklySessionCount >= model.weeklySessionTarget;
+  const sessionControlLabel = model.weeklyMembership === "partial"
+    ? `Log ${model.name}: partial week with ${model.weeklySessionCount} ${model.weeklySessionCount === 1 ? "session" : "sessions"}; target not scored.`
+    : targetMet
+      ? `${model.name}: weekly target met with ${model.weeklySessionCount} sessions. Log another session.`
+      : `Log ${model.name}: ${model.weeklySessionCount} of ${model.weeklySessionTarget} sessions this week.`;
 
   async function handleQuickLog() {
     if (quickLogInFlight.current || isPending) {
