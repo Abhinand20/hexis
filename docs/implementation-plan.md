@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Parallel execution:** Follow `docs/parallel-delivery-plan.md` for dependency gates, branch/worktree isolation, narrower file ownership, and merge order. That plan overrides broad file lists here when several agents are active.
+
 **Goal:** Build a local-first iPhone app that helps a person complete a small group of practices during a 30-, 60-, or 90-day focus cycle.
 
-**Architecture:** Expo Router owns navigation and screen composition. SQLite is the source of truth behind repositories for cycles, cycle-goal revisions, and immutable session logs. Pure domain functions calculate local-day boundaries, weekly progress, streaks, and calendar intensity from those records; screens consume those functions through feature hooks.
+**Architecture:** Expo Router owns navigation and screen composition. SQLite is the source of truth behind repositories for cycles, dated goal membership/configuration, immutable base session logs, and append-only session corrections. Pure domain functions resolve the effective records used for local-day boundaries, weekly progress, streaks, calendars, and dashboards; screens consume those functions through feature hooks.
 
 **Tech Stack:** Expo, React Native, TypeScript, Expo Router, `expo-sqlite`, `expo-notifications`, `expo-glass-effect`, Jest, `jest-expo`, and React Native Testing Library.
 
@@ -12,9 +14,9 @@
 
 - iPhone-first; iOS 26+ is the visual target.
 - A cycle lasts 30 days by default; valid lengths are exactly 30, 60, or 90.
-- The selected practice group cannot change during an active cycle in v1.
+- Practice membership may change during an active cycle only from an explicit effective local date forward. Earlier dates and logs keep their original membership context.
 - Existing practices may receive forward-only configuration revisions; earlier logs retain their historical configuration.
-- A session log is immutable once saved; corrections create an edit record only when that capability is intentionally added.
+- A session's base log is immutable. Edits and deletions append correction records; derived reads expose the latest effective state while retaining the audit trail.
 - Logging is direct and duration-based; there is no in-app timer.
 - There is one optional app-level daily reminder, not per-practice notifications.
 - Use Porcelain & Ink tokens and one muted verdigris accent; do not use gradients or glass as the default content background.
@@ -22,7 +24,7 @@
 - No auth, sync, widgets, HealthKit, payments, social features, or AI behavior in v1.
 - Navigation is a persistent bottom tab bar (Home, History, Settings), always visible. Cycle setup and goal editing are full-screen modals with the tab bar hidden, not tabs of their own. Every stack screen — modal steps included — supports the native header back button and iOS edge-swipe-back gesture.
 - A "week" means the same thing everywhere in the app: a calendar week (Monday–Sunday). Do not introduce a second, cycle-relative definition.
-- History is scoped to the current cycle (active or just completed) only in v1; browsing multiple past cycles is deferred.
+- History can select any cycle once the archive milestone lands. A selected cycle owns the bounds for its Day/Week/Cycle views.
 
 ---
 
@@ -379,7 +381,7 @@ git commit -m "feat: add cycle progress domain"
 - Create: `src/features/cycles/data/cycleRepository.ts`
 - Create: `src/features/goals/data/goalRepository.ts`
 - Create: `src/features/logging/data/sessionRepository.ts`
-- Test: `__tests__/data/cycleRepository.test.ts`
+- Test: `__tests__/data/sessionRepository.test.ts`
 
 **Schema:**
 
@@ -1021,9 +1023,9 @@ npx expo prebuild --platform ios
 npx expo run:ios --device
 ```
 
-## Phase 6 — Calendar day progress
+## Phase 6 — Historical activity timeline and corrections
 
-> This phase makes the contribution calendar an entry point into the existing History Day screen. It follows the grilling decisions: past and current days open that selected day; future days remain unavailable; the Day screen has a summary and a chronological, read-only session list; every session records the actual time it was logged; and there are no notes, backfilling, or post-save editing controls in this milestone.
+> This phase makes every elapsed cycle day trustworthy and correctable. It first records actual session times and exposes a chronological Day timeline, then adds historical activity creation plus append-only edits/deletions. Future dates remain unavailable, notes stay out of scope, and every summary is derived from the latest effective session state.
 
 ### Task 15: Persist each session's actual start time
 
@@ -1037,7 +1039,7 @@ npx expo run:ios --device
 - Modify: `src/features/cycles/components/GoalRow.tsx`
 - Modify: `src/features/logging/components/LogSessionSheet.tsx`
 - Test: `__tests__/db/migrations.test.ts`
-- Test: `__tests__/data/cycleRepository.test.ts`
+- Test: `__tests__/data/sessionRepository.test.ts`
 - Test: `__tests__/components/cycleLanding.test.tsx`
 - Test: `__tests__/components/logSessionSheet.test.tsx`
 
@@ -1058,7 +1060,7 @@ Use a single clock read for each session creation. Keep the new timestamp databa
 - [ ] **Step 3: Update logging mocks/tests and commit.**
 
 ```bash
-npx jest __tests__/db/migrations.test.ts __tests__/data/cycleRepository.test.ts __tests__/components/cycleLanding.test.tsx __tests__/components/logSessionSheet.test.tsx --runInBand
+npx jest __tests__/db/migrations.test.ts __tests__/data/sessionRepository.test.ts __tests__/components/cycleLanding.test.tsx __tests__/components/logSessionSheet.test.tsx --runInBand
 npx tsc --noEmit
 git add src/db src/features/cycles src/features/logging __tests__
 git commit -m "feat: record actual session start times"
@@ -1080,7 +1082,7 @@ git commit -m "feat: record actual session start times"
 - Home's calendar and History's Cycle calendar make dates from the cycle start through the active cycle's current local date—or through a completed cycle's end date—interactive. Selecting one navigates to `/history` with `filter=day` and that date as route parameters.
 - Future dates remain visual calendar cells only. They must not navigate or masquerade as disabled day-progress controls.
 - History consumes and validates the route parameters, selects the Day filter, and renders the requested day. Outside a calendar link, Day continues to default to today (bounded to the current cycle).
-- The Day view has a date heading, total session count, total minutes, the existing per-practice status summary, and a chronological session list. Every session row shows practice name, actual start time, and duration when present. It is read-only; there are no notes, edit, delete, or add controls.
+- The Day view has a date heading, total session count, total minutes, the existing per-practice status summary, and a chronological session list. Every session row shows practice name, actual start time, and duration when present. Task 16 establishes the timeline; Task 18 adds its creation and correction actions after Task 17 supplies persistence.
 - Previous/Next day controls are bounded by the cycle start and the same maximum interactive date as the calendar. Their navigation updates the Day route parameters so the selected date is shareable and survives tab changes.
 
 - [ ] **Step 1: Write failing selector and route-composition tests.**
@@ -1104,47 +1106,347 @@ git add "app/(tabs)" src/features/cycles __tests__/domain __tests__/components
 git commit -m "feat: open calendar days in history"
 ```
 
-### Task 17: Validate calendar day progress and document it
+### Task 17: Add an append-only session correction model
 
 **Files:**
-- Modify: `docs/project-overview.md`
-- Modify: `docs/release-checklist.md` (append the calendar day-progress cases)
-- Modify: `progress/YYYY-MM-DD.md` (record the physical-device result)
+- Modify: `src/db/schema.ts` (add `SCHEMA_V4`)
+- Modify: `src/db/migrations.ts`
+- Modify: `src/features/cycles/domain/types.ts`
+- Modify: `src/features/logging/data/sessionRepository.ts`
+- Test: `__tests__/db/migrations.test.ts`
+- Test: `__tests__/data/sessionRepository.test.ts`
 
 **Behavior:**
 
-- The product overview describes one-tap logging as recording the current actual start time, and specifies the calendar-to-Day-Progress path and its read-only chronological session list.
-- A normal device pass confirms Home and History calendar taps open the right date, future dates are unavailable, the Day pager respects bounds, and session time/duration order matches the saved data.
+- Keep each row in `session_logs` as the immutable original fact. Add `session_log_revisions` with an auto-incrementing sequence, the source session id, effective goal id, local date, start timestamp, duration, tombstone flag, and correction creation timestamp.
+- Every edit writes a complete replacement snapshot; every delete writes a tombstone. The repository resolves the highest-sequence revision as the effective session and hides tombstoned sessions from normal lists. The original plus revision history remains queryable for debugging and future audit UI.
+- Editing may correct the practice, date, time, or duration. The effective local date must be derived from the chosen start timestamp in the device timezone and must remain inside the source cycle and no later than today.
+- Replace the existing hard-delete quick undo with a tombstone correction so every removal path follows one rule.
+- Normal repository reads become the enforcement boundary: all progress, calendar intensity, History, and completion summaries receive effective sessions only and therefore cannot count an original and its revision twice. Task 17 does not rewrite those selectors while Task 16 owns them.
 
-- [ ] **Step 1: Run the complete automated suite.**
+- [ ] **Step 1: Lock the correction contract with failing migration/repository tests.**
 
-Confirm schema migration/backfill, actual start-time persistence, day-summary ordering, route selection, and pager bounds are included in the full Jest run.
+Cover unchanged rows, one edit, multiple edits, deletion, deterministic latest-revision selection, persistence after reinitialization, invalid cross-cycle goal changes, cycle bounds, and a timezone boundary.
 
-- [ ] **Step 2: Run the physical-device calendar-flow checklist.**
+- [ ] **Step 2: Add `SCHEMA_V4` and effective-session repository reads.**
 
-On the signed iPhone build, log two sessions for the same day; check the Day view summary and chronological rows from both calendars; use Previous/Next at each bound; and verify a future date does not open the Day view.
+Keep raw/audit reads explicitly named and out of ordinary screen hooks. Make normal `listForCycle` and `listForDay` calls return only effective, non-deleted sessions.
 
-- [ ] **Step 3: Record the result, update M7, and commit.**
+- [ ] **Step 3: Switch normal repository reads to effective sessions and commit.**
+
+```bash
+npx jest __tests__/db/migrations.test.ts __tests__/data/sessionRepository.test.ts --runInBand
+npx tsc --noEmit
+git add src/db src/features __tests__
+git commit -m "feat: preserve append-only session corrections"
+```
+
+### Task 18: Add, edit, and delete activities from the Day timeline
+
+**Files:**
+- Create: `src/features/logging/components/ActivityEditorSheet.tsx`
+- Create: `src/features/logging/hooks/useEditSession.ts`
+- Modify: `app/(tabs)/history.tsx`
+- Modify: `src/features/cycles/hooks/useCycleHistory.ts`
+- Modify: `docs/project-overview.md`
+- Modify: `docs/release-checklist.md`
+- Test: `__tests__/components/activityEditorSheet.test.tsx`
+- Test: `__tests__/components/cycleHistory.test.tsx`
+- Modify: `progress/YYYY-MM-DD.md`
+
+**Behavior:**
+
+- The selected Day view has **Add activity**. It preselects that date, allows choosing a practice and time, and offers the same duration choices as quick logging. Today defaults to the current time; an earlier day defaults to the current clock time on that date.
+- Selecting a timeline row opens the same sheet in edit mode. Practice, date, time, and duration are editable. Saving appends a revision and returns to the effective day; moving a session to another date refreshes both affected dates.
+- **Delete activity** requires confirmation and appends a tombstone. There is no bulk delete, future-date entry, outside-cycle entry, or note field.
+- The screen exposes pending, retryable error, empty-day, and VoiceOver-labelled states. A successful mutation refreshes Day totals, per-practice status, weekly/cycle analytics, and both calendars without relaunching.
+
+- [ ] **Step 1: Write failing add/edit/delete interaction tests.**
+
+Include an earlier-day add, durationless activity, correcting the selected practice, moving between days, deletion confirmation/cancel, bounds rejection, error retry, and focus refresh.
+
+- [ ] **Step 2: Build the shared editor and wire it to the timeline.**
+
+Keep validation in domain/repository code as well as the form. Reuse date/time and quick-duration primitives rather than duplicating timestamp conversion in the screen.
+
+- [ ] **Step 3: Run the full suite and physical-device pass.**
+
+On the signed iPhone build, add two earlier activities, edit one across a local-midnight boundary, delete one, verify calendar/Day/Week/Cycle totals, and confirm future dates stay unavailable.
+
+- [ ] **Step 4: Update M7 documentation and commit.**
 
 ```bash
 npx jest --runInBand
 npx tsc --noEmit
 npx expo-doctor
-git add docs progress
-git commit -m "docs: record calendar day-progress validation"
+git add "app/(tabs)" src __tests__ docs progress
+git commit -m "feat: correct activities from day history"
 ```
+
+## Phase 7 — Editable active-cycle membership
+
+> This phase allows the practice set to evolve without rewriting the past. Membership changes are forward-only local-date events: a newly added practice becomes available today, and a stopped practice disappears from current logging today while remaining visible wherever it historically participated.
+
+### Task 19: Add dated goal-membership boundaries
+
+**Files:**
+- Modify: `src/db/schema.ts` (add `SCHEMA_V5`)
+- Modify: `src/db/migrations.ts`
+- Modify: `src/features/cycles/domain/types.ts`
+- Modify: `src/features/cycles/data/cycleRepository.ts`
+- Modify: `src/features/goals/data/goalRepository.ts`
+- Modify: `src/features/logging/data/sessionRepository.ts`
+- Modify: `src/features/cycles/domain/cycleProgress.ts`
+- Modify: `src/features/cycles/domain/cycleSummary.ts`
+- Modify: `src/features/cycles/domain/historyInsights.ts`
+- Modify: `src/test/factories.ts`
+- Test: `__tests__/db/migrations.test.ts`
+- Test: `__tests__/data/cycleRepository.test.ts`
+- Test: `__tests__/data/goalRepository.test.ts`
+- Test: `__tests__/data/sessionRepository.test.ts`
+- Test: `__tests__/domain/cycleProgress.test.ts`
+- Test: `__tests__/domain/historyInsights.test.ts`
+
+**Behavior:**
+
+- Add `activeFromDate` (inclusive) and `inactiveFromDate` (exclusive) to `CycleGoal`. Migration V5 backfills every existing goal's start boundary from its cycle start and leaves its end boundary open.
+- Add repository operations to create an active-cycle goal effective today and to stop tracking one effective today. The stop operation transactionally prevents retiring the final active goal. Never physically delete a cycle goal with historical meaning.
+- A goal is available for a new log only when active on the requested local date. Sessions already recorded before a same-day stop are grandfathered: they remain visible and may be corrected in place, but no new session can be added to that stopped goal. Day history includes goals active that day plus any effective sessions that remain for that day.
+- Boundary-week semantics are explicit: a goal contributes to target-achievement/consistency denominators only when it is active for every in-cycle day of that calendar week. A partial membership week still shows raw sessions and minutes but is labelled **Partial week** rather than met/missed.
+- Goal configuration revisions must fall inside the goal's membership window. Existing revisions and logs before an inactive boundary remain valid.
+
+- [ ] **Step 1: Write failing migration, membership, and boundary-week tests.**
+
+Cover existing-row backfill, new-cycle inserts, stable goal ordering, add today, stop today, final-active-goal protection, inactive-date logging/correction rejection, historical visibility, revision bounds, partial first/last membership weeks, and day/week/cycle summaries.
+
+- [ ] **Step 2: Implement membership-aware repositories and pure selectors.**
+
+Centralize `isGoalActiveOn` and membership-window helpers. Do not scatter string-date comparisons through screens.
+
+- [ ] **Step 3: Run focused persistence/domain checks and commit.**
+
+```bash
+npx jest __tests__/db/migrations.test.ts __tests__/data/cycleRepository.test.ts __tests__/data/goalRepository.test.ts __tests__/data/sessionRepository.test.ts __tests__/domain/cycleProgress.test.ts __tests__/domain/historyInsights.test.ts --runInBand
+npx tsc --noEmit
+git add src/db src/features __tests__
+git commit -m "feat: add dated practice membership"
+```
+
+### Task 20: Add a practice during an active cycle
+
+**Files:**
+- Create: `app/cycles/[cycleId]/add-goal.tsx`
+- Modify: `app/_layout.tsx`
+- Modify: `app/(tabs)/settings/index.tsx`
+- Modify: `src/features/goals/components/GoalEditor.tsx`
+- Modify: `src/features/goals/components/GoalTemplateList.tsx`
+- Test: `__tests__/components/addGoalMembership.test.tsx`
+- Test: `__tests__/components/tabShell.test.tsx`
+
+**Behavior:**
+
+- Settings shows **Add practice** for an active cycle. It opens a focused modal using the existing template/custom-goal configuration controls.
+- Review copy names the effective date and explains that earlier cycle days will not include the practice. Saving creates one goal snapshot with `activeFromDate=today`, closes the modal, and refreshes Home, History, and Settings.
+- Validation matches setup: non-empty name, supported cadence, positive target, and optional positive duration. Duplicate names are allowed but the review must make them unambiguous.
+
+- [ ] **Step 1: Write failing navigation, validation, and successful-add tests.**
+- [ ] **Step 2: Reuse the setup/editor primitives in an add-goal modal.**
+- [ ] **Step 3: Verify refresh behavior and commit.**
+
+```bash
+npx jest __tests__/components/addGoalMembership.test.tsx __tests__/components/tabShell.test.tsx --runInBand
+npx tsc --noEmit
+git add app src/features/goals __tests__/components
+git commit -m "feat: add practices to active cycles"
+```
+
+### Task 21: Stop tracking a practice without erasing history
+
+**Files:**
+- Modify: `app/cycles/[cycleId]/edit-goal/[goalId].tsx`
+- Test: `__tests__/components/stopGoalMembership.test.tsx`
+
+**Behavior:**
+
+- An active goal editor exposes **Stop tracking this practice** with confirmation that names today's effective date and states that earlier logs remain.
+- After confirmation the practice disappears from current Home logging and the active Settings list. History before the boundary still renders its original configuration and sessions; the current boundary week is visibly partial.
+- If stopping the last active practice, require adding another practice first or ending the cycle. This prevents an active cycle with no loggable goals.
+- Re-adding a stopped concept creates a new goal identity; restoration/reactivation is intentionally deferred.
+
+- [ ] **Step 1: Write failing stop/cancel/last-goal guard tests.**
+- [ ] **Step 2: Implement the confirmation and focus refresh paths.**
+- [ ] **Step 3: Run focused tests and commit.**
+
+```bash
+npx jest __tests__/components/stopGoalMembership.test.tsx --runInBand
+npx tsc --noEmit
+git add app src/features __tests__/components
+git commit -m "feat: stop tracking active-cycle practices"
+```
+
+### Task 22: Validate editable membership and document the rules
+
+**Files:**
+- Modify: `src/features/cycles/hooks/useCycleLanding.ts`
+- Modify: `src/features/cycles/hooks/useCycleHistory.ts`
+- Test: `__tests__/components/goalMembership.integration.test.tsx`
+- Modify: `docs/project-overview.md`
+- Modify: `docs/release-checklist.md`
+- Modify: `progress/YYYY-MM-DD.md`
+
+- [ ] **Step 1: Run the full automated suite and Expo Doctor.**
+- [ ] **Step 2: On device, add a goal, log it, stop another goal, and inspect dates on both sides of each boundary.**
+- [ ] **Step 3: Document membership and partial-week semantics, mark M8 done, and commit.**
+
+## Phase 8 — Useful active-cycle dashboard
+
+> This phase changes Home from a collection of progress widgets into a concise answer to two questions: **What remains this week?** and **What has my recent rhythm looked like?** It stays descriptive and calm—no scores, shame language, coaching, or stored aggregate state.
+
+### Task 23: Define one pure Home-dashboard summary
+
+**Files:**
+- Create: `src/features/cycles/domain/homeDashboard.ts`
+- Modify: `src/features/cycles/hooks/useCycleLanding.ts`
+- Test: `__tests__/domain/homeDashboard.test.ts`
+- Test: `__tests__/components/cycleLandingHook.test.tsx`
+
+**Behavior:**
+
+- Build a single selector returning the current calendar-week bounds, days remaining in that week/cycle overlap, sessions and minutes logged, target and remaining sessions/minutes, previous-week session delta, and seven recent day buckets.
+- Return per-practice session/minute progress, remaining amounts, met/in-progress/partial-week state, current streak, and today's effective sessions. Respect configuration revisions, membership boundaries, edited sessions, early cycle completion, and over-target caps. Partial-membership goals contribute raw work but not remaining-target totals until their next complete eligible week.
+- Targets remain count-based; planned minutes equal the effective expected duration multiplied by the applicable session target. Missing duration targets never become zero-minute goals.
+- Derive everything from source records. Do not add a dashboard cache or persistence table.
+
+- [ ] **Step 1: Write deterministic selector tests for ordinary, empty, over-target, revised, added/stopped, and partial-week cases.**
+- [ ] **Step 2: Implement and freeze the selector/type contract on its own branch.**
+- [ ] **Step 3: In a short adapter commit after M8 integration, simplify `useCycleLanding` around the selector.**
+- [ ] **Step 4: Run domain/hook tests and commit.**
+
+### Task 24: Redesign Home around weekly remaining effort and recent rhythm
+
+**Files:**
+- Create: `src/features/cycles/components/WeekAtGlanceCard.tsx`
+- Create: `src/features/cycles/components/RecentRhythm.tsx`
+- Modify: `src/features/cycles/components/GoalRow.tsx`
+- Modify: `src/features/cycles/components/CycleHeader.tsx`
+- Modify: `app/(tabs)/index.tsx`
+- Test: `__tests__/components/cycleLanding.test.tsx`
+- Test: `__tests__/components/homeDashboard.test.tsx`
+
+**Behavior:**
+
+- The first useful block after the cycle title is **This week**: completed/target sessions, logged/planned minutes when applicable, sessions and minutes remaining, and calendar days left. Over-target work remains in raw totals while completion bars cap at 100%.
+- A compact seven-day rhythm shows sessions per day and a neutral comparison with the preceding week. It must remain understandable without color.
+- Practice rows keep stable user order and one-tap logging, but replace vague labels with explicit remaining language such as `2 of 3 sessions · 1 remaining`; partial-week membership is labelled rather than scored.
+- Keep the cycle contribution calendar as secondary cycle context below the actionable weekly information. Preserve the under-five-second quick-log path and its undo confirmation.
+- Loading, empty, completed, error, Dynamic Type, VoiceOver, reduced-motion, and small-screen layouts receive explicit coverage.
+
+- [ ] **Step 1: Write the screen contract and accessibility tests before changing layout.**
+- [ ] **Step 2: Implement the new hierarchy using Porcelain & Ink primitives.**
+- [ ] **Step 3: Verify quick logging refreshes every dashboard value once and commit.**
+
+### Task 25: Validate dashboard usefulness and finish M9
+
+**Files:**
+- Modify: `docs/project-overview.md`
+- Modify: `docs/release-checklist.md`
+- Modify: `progress/YYYY-MM-DD.md`
+
+- [ ] **Step 1: Run the complete automated suite, TypeScript, and Expo Doctor.**
+- [ ] **Step 2: Populate sparse, in-progress, target-met, over-target, and partial-membership states on device and visually verify hierarchy at default and large Dynamic Type.**
+- [ ] **Step 3: Confirm a user can state sessions remaining, minutes remaining, and recent rhythm from Home without opening History; record the result and mark M9 done.**
+
+## Phase 9 — Cross-cycle archive and repeat-cycle flow
+
+> This phase turns completed cycles into a usable personal record. History can select any cycle without changing the active cycle, and a completed cycle can seed—but never silently create—the next setup flow.
+
+### Task 26: Add cycle archive queries and compact summaries
+
+**Files:**
+- Modify: `src/features/cycles/data/cycleRepository.ts`
+- Create: `src/features/cycles/domain/cycleArchive.ts`
+- Modify: `src/features/cycles/hooks/useCycleHistory.ts`
+- Test: `__tests__/data/cycleRepository.test.ts`
+- Test: `__tests__/domain/cycleArchive.test.ts`
+
+**Behavior:**
+
+- Add `getCycleById` and `listCycles`, ordered active first and then by most recent start/creation date. Return all statuses without changing the single-active-cycle invariant.
+- Build compact archive summaries with dates, status, practice count, session count, logged minutes, active-day count/ratio, and final active practice names. Use effective sessions and membership/configuration on each cycle's relevant dates.
+- Keep archive summaries pure and computed on demand; do not introduce stored aggregates or pagination until real data volume requires it.
+
+- [ ] **Step 1: Write repository ordering and archive-summary tests.**
+- [ ] **Step 2: Implement the query/selector contract and selected-cycle hook state.**
+- [ ] **Step 3: Run focused tests and commit.**
+
+### Task 27: Browse every cycle from History
+
+**Files:**
+- Create: `src/features/cycles/components/CycleArchiveSheet.tsx`
+- Modify: `app/(tabs)/history.tsx`
+- Modify: `src/features/cycles/hooks/useCycleHistory.ts`
+- Test: `__tests__/components/cycleHistory.test.tsx`
+- Test: `__tests__/components/cycleArchive.test.tsx`
+
+**Behavior:**
+
+- History's header identifies the selected cycle and opens an archive selector containing the active, completed, and early-ended cycles with compact summaries.
+- The `cycleId` route parameter is the selected-cycle source of truth. Day/Week/Cycle bounds, calendars, summaries, and activity edits all switch together; returning from another tab preserves a valid selection.
+- Archived cycles are fully reviewable. M7 correction tools remain available inside their elapsed date bounds, but active-cycle membership controls stay in Settings and never appear in archived History.
+- Empty, single-cycle, deleted/invalid parameter, and very long archive states have explicit behavior.
+
+- [ ] **Step 1: Write failing selection, route, focus-refresh, and boundary tests.**
+- [ ] **Step 2: Build the archive selector and route-driven History state.**
+- [ ] **Step 3: Verify switching cycles never changes the active cycle and commit.**
+
+### Task 28: Duplicate a cycle into editable setup
+
+**Files:**
+- Modify: `src/features/cycles/hooks/useCycleSetupState.tsx`
+- Create: `src/features/cycles/domain/repeatCycleDraft.ts`
+- Modify: `app/setup/duration.tsx`
+- Modify: `app/setup/practices.tsx`
+- Modify: `app/setup/review.tsx`
+- Test: `__tests__/components/cycleSetupNavigation.test.tsx`
+- Test: `__tests__/domain/repeatCycleDraft.test.ts`
+
+**Behavior:**
+
+- Completed and early-ended cycle summaries expose **Repeat cycle**. It opens the ordinary setup modal with the source duration and the final effective configuration of practices active on the source cycle's last date.
+- Duplication is a prefill, not a write. The person can rename the cycle, change duration, and add/remove/edit practices before pressing **Start cycle**.
+- Starting creates fresh cycle/goal ids and copies no sessions, membership boundaries, goal revisions, reminder settings, or archive metadata. Cancelling leaves the database untouched.
+- If an active cycle already exists, **Repeat cycle** may prepare the setup state but cannot start until the active cycle ends; the UI explains the conflict before the final commit action.
+
+- [ ] **Step 1: Write failing prefill, edit, cancel, new-identity, and active-cycle-guard tests.**
+- [ ] **Step 2: Add source-cycle prefill to the existing setup provider without forking the wizard.**
+- [ ] **Step 3: Expose a reusable repeat action contract; Task 27's History owner performs the final button wiring after both branches merge.**
+- [ ] **Step 4: Run setup/domain tests and commit.**
+
+### Task 29: Validate the archive/repeat flow and finish M10
+
+**Files:**
+- Modify: `docs/project-overview.md`
+- Modify: `docs/release-checklist.md`
+- Modify: `progress/YYYY-MM-DD.md`
+
+- [ ] **Step 1: Run the full automated suite, TypeScript, and Expo Doctor.**
+- [ ] **Step 2: On device, create at least three cycles across all statuses, switch among them, correct an archived session, and repeat a completed cycle with edited practices.**
+- [ ] **Step 3: Confirm archive selection survives tab changes and app restart, record results, and mark M10 done.**
 
 ## Verification matrix
 
 | Requirement | Verification |
 | --- | --- |
 | 30/60/90-day constraints | Domain test rejects other durations; setup UI exposes only the three values |
-| Fixed active-cycle membership | Repository exports no active-cycle add/remove methods; route tests show no such action |
-| Forward-only edits | Goal revision test preserves earlier logs and uses today as effective date |
+| Forward-only goal membership | Migration/repository tests backfill membership dates, allow add/stop from today, reject out-of-window logging, and preserve earlier dates |
+| Forward-only goal configuration | Goal revision tests preserve earlier configuration and enforce the goal's membership window |
 | Fast direct logging | Sheet test saves a selected duration in one repository write |
 | Active-cycle context | Landing test renders `Day X / duration`, calendar cells, and all goals |
 | Actual session times | Migration test backfills `startedAt`; repository test persists one current instant as both the session's local date and actual start time |
+| Historical activity correction | Repository tests resolve append-only revisions/tombstones; screen tests cover bounded add/edit/delete; every summary receives only effective sessions |
 | Calendar day progress | Home and History calendar tests navigate a past/current day into History Day; selector tests assert chronological rows; pager tests enforce cycle-date bounds |
+| Useful Home dashboard | Pure-selector tests cover remaining sessions/minutes, recent rhythm, over-target caps, revisions, and partial membership; screen tests preserve fast logging and accessibility |
+| Cross-cycle archive | Repository and screen tests cover cycle ordering/selection, per-cycle bounds, archived corrections, and repeat-cycle prefill with fresh identities |
 | Local-only persistence | Repository integration test survives reinitialization without a network dependency |
 | Reminder is optional | Permission-denied test keeps tracking usable |
 | Glass fallback | `GlassSurface` test renders an ordinary surface when unavailable |
@@ -1155,13 +1457,16 @@ git commit -m "docs: record calendar day-progress validation"
 
 ## Deferred follow-up plan
 
-Create a separate plan only after version one is stable for any of these independent additions:
+Create a separate plan only after M10 is stable for any of these independent additions:
 
 - iCloud or account-backed sync
 - Home Screen widget
 - Apple Health integration
-- Goal membership changes in an active cycle
 - Android/web support
 - Per-practice notifications
-- Cross-cycle history browsing (v1 keeps History scoped to the current cycle only)
+- Session notes or attachments
+- Reactivating a stopped practice as the same goal identity
+- Pause/extend-cycle controls or cycle lengths outside 30/60/90 days
+- Side-by-side cycle comparison charts
+- Data export/import and encrypted backup
 - TestFlight/App Store distribution (requires enrolling in the paid Apple Developer Program)

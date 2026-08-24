@@ -3,7 +3,8 @@
 This is the at-a-glance roadmap for Hexis. Each milestone maps to a phase in
 `docs/implementation-plan.md`, which holds the detailed task/step breakdown.
 Update the status column as work lands; log the supporting detail for each
-completed milestone in `progress/YYYY-MM-DD.md`.
+completed milestone in `progress/YYYY-MM-DD.md`. Multi-agent branch ownership,
+dependency gates, and merge waves are defined in `docs/parallel-delivery-plan.md`.
 
 | # | Milestone | Maps to | Exit criteria | Status |
 | --- | --- | --- | --- | --- |
@@ -13,11 +14,15 @@ completed milestone in `progress/YYYY-MM-DD.md`.
 | M3 | Cycle setup & goal editing | Phase 2 — Tasks 5–6 | New-cycle onboarding (welcome → duration → practices → review) creates a cycle + goal snapshots in one transaction; returning-user goal editor writes forward-only revisions without mutating past logs | ✅ Done |
 | M4 | Landing page & direct logging | Phase 3 — Tasks 7–8 | Active-cycle landing page shows header, accessible contribution calendar, and unified goal list; one-tap **Log** flow with quick durations writes exactly one immutable session log and refreshes the landing view | ✅ Done |
 | M5 | Navigation shell: tabs & back-stack | Phase 4 — Tasks 9–10 | Persistent bottom tab bar (Home, History, Week, Settings) visible with or without an active cycle, Home showing an empty "Start a cycle" state when none exists; cycle setup and goal editing refactored into routed, back-navigable full-screen modals with native header back and swipe-back; Settings consolidates goal editing, reminder placeholder, and end-cycle-early | ✅ Done |
-| M6 | Cycle completion, unified history & personal device build | Phase 5 — Tasks 11–14 | Cycles automatically transition from active to completed once their end date passes (no more domain dead-end), and Home shows an achievement summary with a **Start a new cycle** action; the separate Week tab is folded into a single History tab with Day/Week/Cycle filters built from pure summary selectors; optional app-level daily reminder with a time picker respects permission state; full automated suite (`jest`, `tsc`, `expo-doctor`) is green; manual device validation complete; app installed and verified on a personal iPhone via a local Xcode build | 🟨 In progress — Tasks 11–13 and the automated portion of Task 14 done; manual device validation and the local Xcode install remain |
-| M7 | Calendar day progress | Phase 6 — Tasks 15–17 | Each saved session records its actual start time; past and current calendar days on Home and History open the selected History Day view; the view has a per-practice summary, bounded day pager, and chronological read-only session list; future days remain unavailable; migration and route behavior are covered by automated and device checks | 🟦 Planned — begins after M6's device validation is complete |
+| M6 | Cycle completion, unified history & personal device build | Phase 5 — Tasks 11–14 | Cycles automatically transition from active to completed once their end date passes; Home shows a completion summary; History has Day/Week/Cycle filters; the daily reminder respects permission state; automated checks pass; and a signed local Xcode build runs on a personal iPhone | ✅ Done — signed Xcode/iPhone flow confirmed by the user on 2026-08-23 |
+| M7 | Historical activity timeline & corrections | Phase 6 — Tasks 15–18 | Sessions have actual start timestamps; every elapsed cycle day has a chronological session timeline; a person can add an earlier activity and edit or delete an existing one; corrections are append-only revisions rather than destructive rewrites; all Home/History summaries use the effective session state | 🟦 Planned — next up |
+| M8 | Editable active-cycle membership | Phase 7 — Tasks 19–22 | A person can add a practice to or stop tracking a practice in an active cycle, effective from the current local date forward; past dates, logs, and target history remain intact; Home and History respect goal membership boundaries; no cycle-goal row is physically deleted | ⬜ Queued — follows M7 |
+| M9 | Useful active-cycle dashboard | Phase 8 — Tasks 23–25 | Home answers what remains this week and what has happened recently: total sessions/minutes, targets remaining, days left in the week, per-practice remaining progress, and a compact recent rhythm; information is descriptive, accessible, and derived from logs/revisions without stored aggregates | ⬜ Queued — follows M8 |
+| M10 | Cross-cycle archive & repeat-cycle flow | Phase 9 — Tasks 26–29 | History can browse every active, completed, and early-ended cycle; archive summaries make cycles distinguishable; selecting a cycle preserves Day/Week/Cycle navigation bounds; **Repeat cycle** pre-fills setup from the source cycle's final active practices without copying logs or identifiers | ⬜ Queued — follows M9 |
 
 ## Working agreement
 
-- No milestone begins before the previous one's exit criteria are met and recorded.
+- A task begins once its dependency gate in `docs/parallel-delivery-plan.md` is merged. Independent implementation and UI scaffolding may run ahead in isolated worktrees.
+- Milestone completion still requires its integration, automated, documentation, and device exit criteria; an early branch does not advance milestone status by itself.
 - Each completed task within a milestone gets its own dated entry in `progress/`.
 - `docs/implementation-plan.md` is the source of truth for step-level detail; this file only tracks milestone-level status.
