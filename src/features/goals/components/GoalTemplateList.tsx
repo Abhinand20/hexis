@@ -12,6 +12,117 @@ export type CustomPractice = GoalEditorValue & {
   id: string;
 };
 
+export const STARTER_PRACTICES: readonly CustomPractice[] = [
+  {
+    id: "strength",
+    name: "Strength",
+    cadence: "weekly",
+    weeklyTargetCount: 3,
+    expectedDurationMinutes: 60,
+  },
+  {
+    id: "swim",
+    name: "Swim",
+    cadence: "weekly",
+    weeklyTargetCount: 2,
+    expectedDurationMinutes: 60,
+  },
+  {
+    id: "yoga",
+    name: "Yoga",
+    cadence: "weekly",
+    weeklyTargetCount: 1,
+    expectedDurationMinutes: 60,
+  },
+  {
+    id: "read",
+    name: "Read",
+    cadence: "daily",
+    weeklyTargetCount: 7,
+    expectedDurationMinutes: 30,
+  },
+];
+
+export function createDefaultGoalTemplates(): TemplatePractice[] {
+  return STARTER_PRACTICES.map((practice) => ({
+    ...practice,
+    selected: true,
+  }));
+}
+
+export type GoalTemplatePickerProps = {
+  selectedId: string | "custom";
+  onSelect: (id: string | "custom") => void;
+  disabled?: boolean;
+};
+
+export function GoalTemplatePicker({
+  selectedId,
+  onSelect,
+  disabled = false,
+}: GoalTemplatePickerProps) {
+  return (
+    <View style={styles.picker}>
+      <Text style={styles.pickerTitle}>Start from</Text>
+      <View style={styles.pickerOptions}>
+        {STARTER_PRACTICES.map((practice) => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{
+              disabled,
+              selected: selectedId === practice.id,
+            }}
+            disabled={disabled}
+            key={practice.id}
+            onPress={() => onSelect(practice.id)}
+            style={[
+              styles.pickerOption,
+              selectedId === practice.id ? styles.pickerOptionSelected : null,
+              disabled ? styles.pickerOptionDisabled : null,
+            ]}
+          >
+            <Text
+              style={[
+                styles.pickerOptionText,
+                selectedId === practice.id
+                  ? styles.pickerOptionTextSelected
+                  : null,
+              ]}
+            >
+              {practice.name} template
+            </Text>
+          </Pressable>
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{
+            disabled,
+            selected: selectedId === "custom",
+          }}
+          disabled={disabled}
+          onPress={() => onSelect("custom")}
+          style={[
+            styles.pickerOption,
+            selectedId === "custom" ? styles.pickerOptionSelected : null,
+            disabled ? styles.pickerOptionDisabled : null,
+          ]}
+        >
+          <Text
+            style={[
+              styles.pickerOptionText,
+              selectedId === "custom"
+                ? styles.pickerOptionTextSelected
+                : null,
+            ]}
+          >
+            Custom practice
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export type GoalTemplateListProps = {
   templates: TemplatePractice[];
   customPractices: CustomPractice[];
@@ -194,5 +305,42 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 15,
     fontWeight: "500",
+  },
+  picker: {
+    gap: spacing.sm,
+  },
+  pickerTitle: {
+    color: colors.mutedInk,
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  pickerOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  pickerOption: {
+    borderColor: colors.hairline,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  pickerOptionSelected: {
+    backgroundColor: colors.verdigris,
+    borderColor: colors.verdigris,
+  },
+  pickerOptionDisabled: {
+    opacity: 0.45,
+  },
+  pickerOptionText: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  pickerOptionTextSelected: {
+    color: colors.inkOnDark,
   },
 });

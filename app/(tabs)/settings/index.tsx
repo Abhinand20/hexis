@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   Alert,
   Pressable,
@@ -34,30 +34,44 @@ export default function SettingsScreen() {
   const { db, resetDatabase } = useDatabase();
   const { cycle, isLoading } = useActiveCycle();
   const [goals, setGoals] = useState<CycleGoal[]>([]);
+  const [goalsError, setGoalsError] = useState<string | null>(null);
   const [reminder, setReminder] = useState<DailyReminder>(DEFAULT_REMINDER);
   const [permissionDenied, setPermissionDenied] = useState(false);
 
-  useEffect(() => {
-    if (!db || !cycle) {
-      setGoals([]);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function load() {
-      const listed = await createGoalRepository(db!).listForCycle(cycle!.id);
-      if (!cancelled) {
-        setGoals(listed);
+  const cycleId = cycle?.id;
+  useFocusEffect(
+    useCallback(() => {
+      if (!db || !cycleId) {
+        setGoals([]);
+        setGoalsError(null);
+        return;
       }
-    }
 
-    void load();
+      let cancelled = false;
+      setGoalsError(null);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [db, cycle]);
+      createGoalRepository(db)
+        .listActiveForCycle(cycleId, todayLocalDate())
+        .then((listed) => {
+          if (!cancelled) {
+            setGoals(listed);
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setGoalsError(
+              error instanceof Error
+                ? error.message
+                : "Couldn't load practices. Try again.",
+            );
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [cycleId, db]),
+  );
 
   useEffect(() => {
     if (!db) {
@@ -162,18 +176,32 @@ export default function SettingsScreen() {
     >
       <Text style={styles.sectionLabel}>Practices</Text>
       {cycle ? (
-        goals.map((goal, index) => (
-          <View key={goal.id}>
-            {index > 0 ? <View style={styles.separator} /> : null}
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push(`/cycles/${cycle.id}/edit-goal/${goal.id}`)}
-              style={styles.row}
-            >
-              <Text style={styles.rowLabel}>{goal.name}</Text>
-            </Pressable>
-          </View>
-        ))
+        <>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push(`/cycles/${cycle.id}/add-goal`)}
+            style={styles.addPracticeButton}
+          >
+            <Text style={styles.addPracticeLabel}>Add practice</Text>
+          </Pressable>
+          {goalsError ? (
+            <Text accessibilityLiveRegion="polite" style={styles.errorCopy}>
+              {goalsError}
+            </Text>
+          ) : null}
+          {goals.map((goal, index) => (
+            <View key={goal.id}>
+              {index > 0 ? <View style={styles.separator} /> : null}
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push(`/cycles/${cycle.id}/edit-goal/${goal.id}`)}
+                style={styles.row}
+              >
+                <Text style={styles.rowLabel}>{goal.name}</Text>
+              </Pressable>
+            </View>
+          ))}
+        </>
       ) : (
         <Text style={styles.emptyCopy}>Start a cycle to configure practices.</Text>
       )}
@@ -270,6 +298,26 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 16,
     fontWeight: "500",
+  },
+  addPracticeButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderColor: colors.verdigris,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  addPracticeLabel: {
+    color: colors.verdigris,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  errorCopy: {
+    color: "#8B3A3A",
+    fontSize: 14,
+    paddingVertical: spacing.sm,
   },
   rowCaption: {
     color: colors.mutedInk,

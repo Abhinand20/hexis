@@ -13,6 +13,7 @@ import type {
   CustomPractice,
   TemplatePractice,
 } from "../../goals/components/GoalTemplateList";
+import { createDefaultGoalTemplates } from "../../goals/components/GoalTemplateList";
 import type { CycleDurationDays } from "../domain/types";
 
 export type EditorTarget =
@@ -35,41 +36,6 @@ export type CycleSetupContextValue = {
   hasPractices: boolean;
 };
 
-const DEFAULT_TEMPLATES: TemplatePractice[] = [
-  {
-    id: "strength",
-    name: "Strength",
-    cadence: "weekly",
-    weeklyTargetCount: 3,
-    expectedDurationMinutes: 60,
-    selected: true,
-  },
-  {
-    id: "swim",
-    name: "Swim",
-    cadence: "weekly",
-    weeklyTargetCount: 2,
-    expectedDurationMinutes: 60,
-    selected: true,
-  },
-  {
-    id: "yoga",
-    name: "Yoga",
-    cadence: "weekly",
-    weeklyTargetCount: 1,
-    expectedDurationMinutes: 60,
-    selected: true,
-  },
-  {
-    id: "read",
-    name: "Read",
-    cadence: "daily",
-    weeklyTargetCount: 7,
-    expectedDurationMinutes: 30,
-    selected: true,
-  },
-];
-
 function defaultCycleName(durationDays: CycleDurationDays): string {
   return `${durationDays}-Day Cycle`;
 }
@@ -83,7 +49,7 @@ export function CycleSetupProvider({
 }): ReactElement {
   const [durationDays, setDurationDays] = useState<CycleDurationDays>(30);
   const [templates, setTemplates] =
-    useState<TemplatePractice[]>(DEFAULT_TEMPLATES);
+    useState<TemplatePractice[]>(createDefaultGoalTemplates);
   const [customPractices, setCustomPractices] = useState<CustomPractice[]>([]);
   const [cycleName, setCycleNameState] = useState(defaultCycleName(30));
   const [nameTouched, setNameTouched] = useState(false);

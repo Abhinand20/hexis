@@ -21,6 +21,14 @@ export default function RootLayout() {
               title: "Edit practice",
             }}
           />
+          <Stack.Screen
+            name="cycles/[cycleId]/add-goal"
+            options={{
+              presentation: "modal",
+              headerShown: true,
+              title: "Add practice",
+            }}
+          />
         </Stack>
       </DatabaseProvider>
     </SafeAreaProvider>

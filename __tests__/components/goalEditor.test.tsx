@@ -231,6 +231,9 @@ it("supports route-level helper, pending, error, and secondary-action states", a
   ).toBeTruthy();
   expect(screen.getByText("Couldn't save. Try again.")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  expect(screen.getByLabelText("Practice name").props.editable).toBe(false);
+  expect(screen.getByRole("button", { name: "Daily" })).toBeDisabled();
 
   const stopButton = screen.getByRole("button", {
     name: "Stop tracking this practice",
@@ -238,6 +241,7 @@ it("supports route-level helper, pending, error, and secondary-action states", a
   expect(stopButton.props.accessibilityHint).toBe(
     "Keeps earlier activity in history",
   );
+  expect(stopButton).toBeDisabled();
   await user.press(stopButton);
-  expect(secondaryAction).toHaveBeenCalledTimes(1);
+  expect(secondaryAction).not.toHaveBeenCalled();
 });

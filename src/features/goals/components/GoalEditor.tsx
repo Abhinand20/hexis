@@ -30,6 +30,7 @@ export type GoalEditorProps = {
   submitError?: string | null;
   isSaving?: boolean;
   saveLabel?: string;
+  presentation?: "modal" | "inline";
   secondaryAction?: {
     label: string;
     onPress: () => void;
@@ -59,6 +60,7 @@ export function GoalEditor({
   submitError,
   isSaving = false,
   saveLabel,
+  presentation = "modal",
   secondaryAction,
 }: GoalEditorProps) {
   const insets = useSafeAreaInsets();
@@ -107,15 +109,20 @@ export function GoalEditor({
     });
   }
 
-  return (
-    <Modal animationType="slide" transparent visible onRequestClose={onCancel}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.backdrop}
+  const editor = (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={
+        presentation === "inline" ? styles.inlineContainer : styles.backdrop
+      }
+    >
+      <View
+        style={[
+          styles.sheet,
+          presentation === "inline" ? styles.inlineSheet : null,
+          { paddingBottom: spacing.xxl + insets.bottom },
+        ]}
       >
-        <View
-          style={[styles.sheet, { paddingBottom: spacing.xxl + insets.bottom }]}
-        >
           <Text style={styles.title}>
             {mode === "create" ? "Add practice" : "Edit practice"}
           </Text>
@@ -129,6 +136,7 @@ export function GoalEditor({
           <Text style={styles.label}>Practice name</Text>
           <TextInput
             accessibilityLabel="Practice name"
+            editable={!isSaving}
             onChangeText={setName}
             style={styles.input}
             value={name}
@@ -138,7 +146,11 @@ export function GoalEditor({
           <View style={styles.row}>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ selected: cadence === "daily" }}
+              accessibilityState={{
+                disabled: isSaving,
+                selected: cadence === "daily",
+              }}
+              disabled={isSaving}
               onPress={() => setCadence("daily")}
               style={[
                 styles.chip,
@@ -156,7 +168,11 @@ export function GoalEditor({
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ selected: cadence === "weekly" }}
+              accessibilityState={{
+                disabled: isSaving,
+                selected: cadence === "weekly",
+              }}
+              disabled={isSaving}
               onPress={() => setCadence("weekly")}
               style={[
                 styles.chip,
@@ -177,6 +193,7 @@ export function GoalEditor({
           <Text style={styles.label}>Weekly target count</Text>
           <TextInput
             accessibilityLabel="Weekly target count"
+            editable={!isSaving}
             keyboardType="number-pad"
             onChangeText={setWeeklyTargetCount}
             style={styles.input}
@@ -186,6 +203,7 @@ export function GoalEditor({
           <Text style={styles.label}>Expected duration (minutes)</Text>
           <TextInput
             accessibilityLabel="Expected duration (minutes)"
+            editable={!isSaving}
             keyboardType="number-pad"
             onChangeText={setExpectedDurationMinutes}
             placeholder="Optional"
@@ -208,12 +226,16 @@ export function GoalEditor({
             <Pressable
               accessibilityHint={secondaryAction.accessibilityHint}
               accessibilityRole="button"
-              accessibilityState={{ disabled: secondaryAction.disabled }}
-              disabled={secondaryAction.disabled}
+              accessibilityState={{
+                disabled: isSaving || secondaryAction.disabled,
+              }}
+              disabled={isSaving || secondaryAction.disabled}
               onPress={secondaryAction.onPress}
               style={[
                 styles.destructiveButton,
-                secondaryAction.disabled ? styles.buttonDisabled : null,
+                isSaving || secondaryAction.disabled
+                  ? styles.buttonDisabled
+                  : null,
               ]}
             >
               <Text style={styles.destructiveButtonText}>
@@ -225,8 +247,13 @@ export function GoalEditor({
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ disabled: isSaving }}
+              disabled={isSaving}
               onPress={onCancel}
-              style={styles.secondaryButton}
+              style={[
+                styles.secondaryButton,
+                isSaving ? styles.buttonDisabled : null,
+              ]}
             >
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
@@ -248,8 +275,17 @@ export function GoalEditor({
               </Text>
             </Pressable>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+      </View>
+    </KeyboardAvoidingView>
+  );
+
+  if (presentation === "inline") {
+    return editor;
+  }
+
+  return (
+    <Modal animationType="slide" transparent visible onRequestClose={onCancel}>
+      {editor}
     </Modal>
   );
 }
@@ -260,6 +296,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
+  inlineContainer: {
+    backgroundColor: colors.porcelain,
+  },
   sheet: {
     backgroundColor: colors.porcelain,
     borderTopLeftRadius: 16,
@@ -267,6 +306,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.xl,
     paddingBottom: spacing.xxl,
+  },
+  inlineSheet: {
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    paddingTop: spacing.md,
   },
   title: {
     color: colors.ink,

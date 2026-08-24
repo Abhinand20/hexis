@@ -1,7 +1,9 @@
+import type { ReactNode } from "react";
 import { Alert } from "react-native";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import { userEvent } from "@testing-library/react-native";
 
+import RootLayout from "../../app/_layout";
 import TabsLayout from "../../app/(tabs)/_layout";
 import SettingsScreen from "../../app/(tabs)/settings/index";
 import { todayLocalDate } from "../../src/features/cycles/domain/date";
@@ -13,7 +15,7 @@ const mockNavigate = jest.fn();
 const mockResetDatabase = jest.fn();
 const mockGetActiveCycle = jest.fn();
 const mockEndCycleEarly = jest.fn();
-const mockListForCycle = jest.fn();
+const mockListActiveForCycle = jest.fn();
 const mockUseActiveCycle = jest.fn();
 const mockLoadReminder = jest.fn();
 const mockSaveReminder = jest.fn();
@@ -21,8 +23,28 @@ const mockSetDailyReminder = jest.fn();
 const mockOpenSettings = jest.fn();
 
 jest.mock("expo-router", () => {
+  const React = require("react") as typeof import("react");
+  const { Text } = require("react-native") as typeof import("react-native");
+
+  function MockStack({ children }: { children: React.ReactNode }) {
+    return <>{children}</>;
+  }
+  MockStack.Screen = function MockStackScreen({
+    name,
+    options,
+  }: {
+    name: string;
+    options?: { title?: string };
+  }) {
+    return <Text>{`${name}:${options?.title ?? ""}`}</Text>;
+  };
+
   return {
     ...jest.requireActual("expo-router"),
+    Stack: MockStack,
+    useFocusEffect: (callback: () => void | (() => void)) => {
+      React.useEffect(callback, [callback]);
+    },
     useRouter: () => ({ push: mockPush, navigate: mockNavigate }),
   };
 });
@@ -59,6 +81,7 @@ jest.mock("expo-router/unstable-native-tabs", () => {
 jest.mock("../../src/db/DatabaseProvider", () => {
   const db = {};
   return {
+    DatabaseProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
     useDatabase: () => ({
       db,
       isLoading: false,
@@ -81,7 +104,8 @@ jest.mock("../../src/features/cycles/data/cycleRepository", () => ({
 
 jest.mock("../../src/features/goals/data/goalRepository", () => ({
   createGoalRepository: () => ({
-    listForCycle: (...args: unknown[]) => mockListForCycle(...args),
+    listActiveForCycle: (...args: unknown[]) =>
+      mockListActiveForCycle(...args),
   }),
 }));
 
@@ -131,7 +155,7 @@ beforeEach(() => {
   mockResetDatabase.mockReset();
   mockGetActiveCycle.mockReset();
   mockEndCycleEarly.mockReset();
-  mockListForCycle.mockReset();
+  mockListActiveForCycle.mockReset();
   mockUseActiveCycle.mockReset();
   mockLoadReminder.mockReset();
   mockSaveReminder.mockReset();
@@ -160,13 +184,23 @@ describe("TabsLayout", () => {
   });
 });
 
+describe("RootLayout", () => {
+  it("registers the native add-practice modal route", async () => {
+    const screen = await render(<RootLayout />);
+
+    expect(
+      screen.getByText("cycles/[cycleId]/add-goal:Add practice"),
+    ).toBeTruthy();
+  });
+});
+
 describe("SettingsScreen", () => {
   it("lists active-cycle goals and navigates to the edit-goal route", async () => {
     mockUseActiveCycle.mockReturnValue({
       cycle: createCycle({ id: "cycle-1" }),
       isLoading: false,
     });
-    mockListForCycle.mockResolvedValue([strengthGoal]);
+    mockListActiveForCycle.mockResolvedValue([strengthGoal]);
 
     const screen = await render(<SettingsScreen />);
     const user = userEvent.setup();
@@ -174,9 +208,27 @@ describe("SettingsScreen", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Strength" })).toBeTruthy();
     });
+    expect(mockListActiveForCycle).toHaveBeenCalledWith(
+      "cycle-1",
+      todayLocalDate(),
+    );
 
     await user.press(screen.getByRole("button", { name: "Strength" }));
     expect(mockPush).toHaveBeenCalledWith("/cycles/cycle-1/edit-goal/goal-strength");
+  });
+
+  it("shows Add practice for an active cycle and opens its routed modal", async () => {
+    mockUseActiveCycle.mockReturnValue({
+      cycle: createCycle({ id: "cycle-1" }),
+      isLoading: false,
+    });
+    mockListActiveForCycle.mockResolvedValue([strengthGoal]);
+
+    const screen = await render(<SettingsScreen />);
+    const user = userEvent.setup();
+
+    await user.press(screen.getByRole("button", { name: "Add practice" }));
+    expect(mockPush).toHaveBeenCalledWith("/cycles/cycle-1/add-goal");
   });
 
   it("shows a practices empty message and hides end-cycle when no cycle is active", async () => {
@@ -190,8 +242,9 @@ describe("SettingsScreen", () => {
     expect(
       screen.getByText("Start a cycle to configure practices."),
     ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add practice" })).toBeNull();
     expect(screen.queryByRole("button", { name: "End cycle early" })).toBeNull();
-    expect(mockListForCycle).not.toHaveBeenCalled();
+    expect(mockListActiveForCycle).not.toHaveBeenCalled();
   });
 
   it("renders the daily reminder toggle reflecting loaded settings", async () => {
@@ -282,7 +335,7 @@ describe("SettingsScreen", () => {
       cycle: createCycle({ id: "cycle-1" }),
       isLoading: false,
     });
-    mockListForCycle.mockResolvedValue([strengthGoal]);
+    mockListActiveForCycle.mockResolvedValue([strengthGoal]);
 
     const alertSpy = jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
       const confirm = buttons?.find((button) => button.style === "destructive");
