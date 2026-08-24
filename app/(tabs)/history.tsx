@@ -12,7 +12,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../src/design/tokens";
 import { CycleCalendar } from "../../src/features/cycles/components/CycleCalendar";
-import { calendarDayIntensity } from "../../src/features/cycles/domain/cycleProgress";
+import {
+  calendarDayIntensity,
+  goalConfigurationOn,
+} from "../../src/features/cycles/domain/cycleProgress";
 import {
   buildDaySummary,
   buildWeekSummary,
@@ -34,8 +37,22 @@ import type {
   SessionLog,
 } from "../../src/features/cycles/domain/types";
 import { useCycleHistory } from "../../src/features/cycles/hooks/useCycleHistory";
+import {
+  ActivityEditorSheet,
+  type ActivityEditorValue,
+} from "../../src/features/logging/components/ActivityEditorSheet";
+import {
+  activityInstantFromLocalFields,
+  currentLocalClockTime,
+  localClockTimeForInstant,
+} from "../../src/features/logging/domain/activityDateTime";
+import { useEditSession } from "../../src/features/logging/hooks/useEditSession";
 
 type HistoryFilter = "day" | "week" | "cycle";
+
+type EditorState =
+  | { mode: "add"; localDate: string; practiceId: string; startedTime: string }
+  | { mode: "edit"; session: SessionLog };
 
 const FILTERS: { key: HistoryFilter; label: string }[] = [
   { key: "day", label: "Day" },
@@ -124,6 +141,9 @@ export default function HistoryScreen() {
     }, []),
   );
   const state = useCycleHistory(focusVersion);
+  const activityMutation = useEditSession();
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [editorLocalError, setEditorLocalError] = useState<string | null>(null);
   const [filter, setFilter] = useState<HistoryFilter>(
     routeFilter === "day" || routeFilter === "week" || routeFilter === "cycle"
       ? routeFilter
@@ -154,6 +174,12 @@ export default function HistoryScreen() {
     },
     [router],
   );
+
+  const dismissEditor = useCallback(() => {
+    setEditor(null);
+    setEditorLocalError(null);
+    activityMutation.clearError();
+  }, [activityMutation.clearError]);
 
   if (state.status === "loading") {
     return (
@@ -212,15 +238,102 @@ export default function HistoryScreen() {
   const currentWeek = weekPointer ?? maxWeekStart;
   const statusLabel = cycle.status === "active" ? "Active cycle" : "Completed cycle";
 
+  const openAddEditor = (localDate: string, practiceId = goals[0]?.id ?? "") => {
+    activityMutation.clearError();
+    setEditorLocalError(null);
+    setEditor({
+      mode: "add",
+      localDate,
+      practiceId,
+      startedTime: currentLocalClockTime(),
+    });
+  };
+
+  const openEditEditor = (sourceSessionId: string) => {
+    const session = logs.find((candidate) => candidate.id === sourceSessionId);
+    if (!session) {
+      return;
+    }
+    activityMutation.clearError();
+    setEditorLocalError(null);
+    setEditor({ mode: "edit", session });
+  };
+
+  const finishMutation = (effectiveDate: string) => {
+    setEditor(null);
+    setEditorLocalError(null);
+    navigateToDay(effectiveDate);
+    setFocusVersion((version) => version + 1);
+  };
+
+  const saveActivity = async (value: ActivityEditorValue) => {
+    if (!editor) {
+      return;
+    }
+
+    setEditorLocalError(null);
+    try {
+      const startedAt = activityInstantFromLocalFields(
+        value.localDate,
+        value.startedTime,
+      );
+      const saved = editor.mode === "add"
+        ? await activityMutation.createSession({
+            cycleGoalId: value.practiceId,
+            startedAt,
+            durationMinutes: value.durationMinutes,
+          })
+        : await activityMutation.correctSession(editor.session.id, {
+            cycleGoalId: value.practiceId,
+            startedAt,
+            durationMinutes: value.durationMinutes,
+          });
+      finishMutation(saved.localDate);
+    } catch (reason) {
+      setEditorLocalError(
+        reason instanceof Error ? reason.message : "Could not save this activity.",
+      );
+    }
+  };
+
+  const deleteActivity = async () => {
+    if (editor?.mode !== "edit") {
+      return;
+    }
+    try {
+      await activityMutation.deleteSession(editor.session.id);
+      finishMutation(editor.session.localDate);
+    } catch {
+      // The hook retains a retryable error while the editor stays open.
+    }
+  };
+
+  const editorInitialValue: ActivityEditorValue | null = editor === null
+    ? null
+    : editor.mode === "add"
+      ? {
+          practiceId: editor.practiceId,
+          localDate: editor.localDate,
+          startedTime: editor.startedTime,
+          durationMinutes: null,
+        }
+      : {
+          practiceId: editor.session.cycleGoalId,
+          localDate: editor.session.localDate,
+          startedTime: localClockTimeForInstant(editor.session.startedAt),
+          durationMinutes: editor.session.durationMinutes,
+        };
+
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: insets.bottom + 96 },
-      ]}
-    >
+    <>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + 96 },
+        ]}
+      >
       <View style={styles.header}>
         <Text style={styles.eyebrow}>
           {statusLabel} · Day {cycleDayNumber(cycle, upperBoundDate)} of {cycle.durationDays}
@@ -272,6 +385,8 @@ export default function HistoryScreen() {
           maxDate={upperBoundDate}
           onPrevious={() => navigateToDay(addLocalDays(selectedDay, -1))}
           onNext={() => navigateToDay(addLocalDays(selectedDay, 1))}
+          onAddActivity={() => openAddEditor(selectedDay)}
+          onEditActivity={openEditEditor}
         />
       ) : null}
 
@@ -302,7 +417,28 @@ export default function HistoryScreen() {
           onSelectDay={navigateToDay}
         />
       ) : null}
-    </ScrollView>
+      </ScrollView>
+
+      {editorInitialValue ? (
+        <ActivityEditorSheet
+          mode={editor!.mode}
+          visible
+          practices={goals.map((goal) => ({
+            id: goal.id,
+            name: goalConfigurationOn(goal, revisions, editorInitialValue.localDate).name,
+          }))}
+          initialValue={editorInitialValue}
+          minDate={cycle.startDate}
+          maxDate={upperBoundDate}
+          onDismiss={dismissEditor}
+          onSave={saveActivity}
+          onDelete={editor!.mode === "edit" ? deleteActivity : undefined}
+          isSaving={activityMutation.isSaving}
+          isDeleting={activityMutation.isDeleting}
+          error={editorLocalError ?? activityMutation.error?.message ?? null}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -316,6 +452,8 @@ function DayFilterView({
   maxDate,
   onPrevious,
   onNext,
+  onAddActivity,
+  onEditActivity,
 }: {
   cycle: Cycle;
   goals: CycleGoal[];
@@ -326,6 +464,8 @@ function DayFilterView({
   maxDate: string;
   onPrevious: () => void;
   onNext: () => void;
+  onAddActivity: () => void;
+  onEditActivity: (sourceSessionId: string) => void;
 }) {
   const summary = buildDaySummary(goals, revisions, logs, selectedDate);
   const prevDisabled = selectedDate <= minDate;
@@ -349,6 +489,17 @@ function DayFilterView({
         <MetricCard value={formatMinutes(summary.minutesLogged)} label="logged" />
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        onPress={onAddActivity}
+        style={({ pressed }) => [
+          styles.addActivityButton,
+          pressed ? styles.addActivityButtonPressed : null,
+        ]}
+      >
+        <Text style={styles.addActivityButtonText}>Add activity</Text>
+      </Pressable>
+
       <SectionHeading
         label="Activity timeline"
         detail={`${summary.sessionCount} ${summary.sessionCount === 1 ? "session" : "sessions"}`}
@@ -361,11 +512,16 @@ function DayFilterView({
               ? "Duration not recorded"
               : formatMinutes(session.durationMinutes);
             return (
-              <View
+              <Pressable
                 key={session.id}
-                accessible
-                accessibilityLabel={`${session.practiceName}, ${time}, ${duration}`}
-                style={[styles.timelineRow, index > 0 ? styles.rowDivider : null]}
+                accessibilityLabel={`Edit ${session.practiceName} activity, ${time}, ${duration}`}
+                accessibilityRole="button"
+                onPress={() => onEditActivity(session.id)}
+                style={({ pressed }) => [
+                  styles.timelineRow,
+                  index > 0 ? styles.rowDivider : null,
+                  pressed ? styles.timelineRowPressed : null,
+                ]}
               >
                 <View style={styles.timelineTimeColumn}>
                   <Text style={styles.timelineTime}>{time}</Text>
@@ -375,7 +531,8 @@ function DayFilterView({
                   <Text style={styles.practiceName}>{session.practiceName}</Text>
                   <Text style={styles.practiceMeta}>{duration}</Text>
                 </View>
-              </View>
+                <Text accessibilityElementsHidden style={styles.editAffordance}>Edit</Text>
+              </Pressable>
             );
           })}
         </View>
@@ -980,6 +1137,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
+  addActivityButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: colors.verdigris,
+    borderCurve: "continuous",
+    borderRadius: 12,
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+  },
+  addActivityButtonPressed: {
+    opacity: 0.78,
+  },
+  addActivityButtonText: {
+    color: colors.inkOnDark,
+    fontSize: 14,
+    fontWeight: "700",
+  },
   sectionHeading: {
     alignItems: "baseline",
     borderBottomColor: colors.hairline,
@@ -1024,6 +1199,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     minHeight: 48,
     paddingVertical: spacing.xs,
+  },
+  timelineRowPressed: {
+    opacity: 0.65,
   },
   timelineTimeColumn: {
     alignItems: "center",
@@ -1080,6 +1258,11 @@ const styles = StyleSheet.create({
     color: colors.mutedInk,
     fontSize: 13,
     lineHeight: 18,
+  },
+  editAffordance: {
+    color: colors.verdigris,
+    fontSize: 13,
+    fontWeight: "700",
   },
   practiceLine: {
     color: colors.mutedInk,
