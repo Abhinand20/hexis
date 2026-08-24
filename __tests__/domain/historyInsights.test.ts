@@ -13,6 +13,8 @@ const writeGoal: CycleGoal = {
   cadence: "daily",
   weeklyTargetCount: 5,
   expectedDurationMinutes: 30,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
@@ -23,6 +25,8 @@ const strengthGoal: CycleGoal = {
   cadence: "weekly",
   weeklyTargetCount: 2,
   expectedDurationMinutes: 60,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
@@ -173,6 +177,40 @@ describe("buildHistoryInsights", () => {
       name: "Daily mobility",
       cadence: "daily",
       currentStreak: 4,
+    });
+  });
+
+  it("keeps partial-week work but excludes it from target denominators", () => {
+    const partialStrength = {
+      ...strengthGoal,
+      activeFromDate: "2026-07-15",
+    };
+    const insights = buildHistoryInsights(
+      createCycle({
+        id: "cycle-1",
+        startDate: "2026-07-13",
+        endDate: "2026-08-11",
+      }),
+      [writeGoal, partialStrength],
+      [],
+      [
+        log("partial-1", partialStrength.id, "2026-07-15", 60),
+        log("partial-2", partialStrength.id, "2026-07-17", 60),
+      ],
+      "2026-07-20",
+    );
+
+    expect(insights.trend[0]).toMatchObject({
+      targetCount: 5,
+      sessionCount: 2,
+      partialGoalCount: 1,
+    });
+    expect(insights.practices[1]).toMatchObject({
+      sessionCount: 2,
+      minutesLogged: 120,
+      targetCount: 2,
+      completionRatio: 0,
+      partialWeekCount: 1,
     });
   });
 });

@@ -3,6 +3,7 @@ import {
   goalConfigurationOn,
 } from "./cycleProgress";
 import { addLocalDays, weekStart } from "./date";
+import { isGoalActiveOn, type GoalWeekMembership } from "./goalMembership";
 import type { Cycle, CycleGoal, GoalRevision, SessionLog } from "./types";
 
 export type CycleAchievementSummary = {
@@ -49,7 +50,8 @@ export type WeekPracticeProgress = {
   sessionTarget: number;
   minutesLogged: number;
   minutesTarget: number | null;
-  met: boolean;
+  membership: GoalWeekMembership;
+  met: boolean | null;
 };
 
 export type WeekStrongestDay = {
@@ -196,21 +198,26 @@ export function buildDaySummary(
   logs: SessionLog[],
   localDate: string,
 ): DaySummary {
-  const practices = goals.map((goal) => {
+  const practices = goals.flatMap((goal) => {
     const config = goalConfigurationOn(goal, revisions, localDate);
     const dayLogs = logs.filter(
       (log) => log.cycleGoalId === goal.id && log.localDate === localDate,
     );
     const logged = dayLogs.length > 0;
-    return {
-      goalId: goal.id,
-      name: config.name,
-      logged,
-      minutesLogged: logged
-        ? dayLogs.reduce((sum, log) => sum + (log.durationMinutes ?? 0), 0)
-        : null,
-      expectedDurationMinutes: config.expectedDurationMinutes,
-    };
+    if (!isGoalActiveOn(goal, localDate) && !logged) {
+      return [];
+    }
+    return [
+      {
+        goalId: goal.id,
+        name: config.name,
+        logged,
+        minutesLogged: logged
+          ? dayLogs.reduce((sum, log) => sum + (log.durationMinutes ?? 0), 0)
+          : null,
+        expectedDurationMinutes: config.expectedDurationMinutes,
+      },
+    ];
   });
 
   const goalsById = new Map(goals.map((goal) => [goal.id, goal]));
@@ -251,22 +258,38 @@ export function buildWeekSummary(
   revisions: GoalRevision[],
   logs: SessionLog[],
   weekStartDate: string,
+  cycle?: Cycle,
 ): WeekSummary {
   const monday = weekStart(weekStartDate);
   const weekEndDate = addLocalDays(monday, 6);
 
-  const practiceProgress: WeekPracticeProgress[] = goals.map((goal) => {
-    const progress = calculateGoalWeekProgress(goal, revisions, logs, monday);
+  const practiceProgress: WeekPracticeProgress[] = goals.flatMap((goal) => {
+    const progress = calculateGoalWeekProgress(
+      goal,
+      revisions,
+      logs,
+      monday,
+      cycle,
+    );
+    if (progress.membership === "inactive" && progress.sessionCount === 0) {
+      return [];
+    }
     const name = goalConfigurationOn(goal, revisions, monday).name;
-    return {
-      goalId: goal.id,
-      name,
-      sessionCount: progress.sessionCount,
-      sessionTarget: progress.sessionTarget,
-      minutesLogged: progress.minutesLogged,
-      minutesTarget: progress.minutesTarget,
-      met: progress.sessionCount >= progress.sessionTarget,
-    };
+    return [
+      {
+        goalId: goal.id,
+        name,
+        sessionCount: progress.sessionCount,
+        sessionTarget: progress.sessionTarget,
+        minutesLogged: progress.minutesLogged,
+        minutesTarget: progress.minutesTarget,
+        membership: progress.membership,
+        met:
+          progress.membership === "full"
+            ? progress.sessionCount >= progress.sessionTarget
+            : null,
+      },
+    ];
   });
 
   const sessionCount = practiceProgress.reduce(
@@ -278,7 +301,7 @@ export function buildWeekSummary(
     0,
   );
   const missedTargetGoalNames = practiceProgress
-    .filter((practice) => !practice.met)
+    .filter((practice) => practice.met === false)
     .map((practice) => practice.name);
 
   const goalIds = new Set(goals.map((goal) => goal.id));

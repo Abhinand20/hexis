@@ -79,3 +79,19 @@ export const SCHEMA_V4: string[] = [
   `CREATE INDEX session_log_revisions_source_sequence
 ON session_log_revisions(source_session_id, sequence DESC)`,
 ];
+
+export const SCHEMA_V5: string[] = [
+  `ALTER TABLE cycle_goals
+ADD COLUMN active_from_date TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE cycle_goals
+ADD COLUMN inactive_from_date TEXT
+CHECK (inactive_from_date IS NULL OR inactive_from_date > active_from_date)`,
+  `UPDATE cycle_goals
+SET active_from_date = (
+  SELECT cycles.start_date
+  FROM cycles
+  WHERE cycles.id = cycle_goals.cycle_id
+)`,
+  `CREATE INDEX cycle_goals_cycle_membership
+ON cycle_goals(cycle_id, active_from_date, inactive_from_date)`,
+];

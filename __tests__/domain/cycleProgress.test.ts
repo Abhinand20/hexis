@@ -4,7 +4,12 @@ import {
   calendarDayIntensity,
   goalConfigurationOn,
 } from "../../src/features/cycles/domain/cycleProgress";
+import {
+  goalMembershipForWeek,
+  isGoalActiveOn,
+} from "../../src/features/cycles/domain/goalMembership";
 import type { CycleGoal, GoalRevision, SessionLog } from "../../src/features/cycles/domain/types";
+import { createCycle } from "../../src/test/factories";
 
 const strengthGoal: CycleGoal = {
   id: "goal-strength",
@@ -13,6 +18,8 @@ const strengthGoal: CycleGoal = {
   cadence: "weekly",
   weeklyTargetCount: 3,
   expectedDurationMinutes: 60,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
@@ -30,6 +37,7 @@ describe("calculateGoalWeekProgress", () => {
       sessionTarget: 3,
       minutesLogged: 128,
       minutesTarget: 180,
+      membership: "full",
     });
   });
 
@@ -46,6 +54,70 @@ describe("calculateGoalWeekProgress", () => {
     const progress = calculateGoalWeekProgress(strengthGoal, revisions, [], "2026-07-23");
     expect(progress.sessionTarget).toBe(2);
     expect(progress.minutesTarget).toBe(90);
+  });
+});
+
+describe("dated goal membership", () => {
+  const cycle = createCycle({
+    id: "cycle-1",
+    startDate: "2026-07-01",
+    endDate: "2026-07-30",
+  });
+
+  it("uses inclusive starts and exclusive stops", () => {
+    const bounded = {
+      ...strengthGoal,
+      activeFromDate: "2026-07-03",
+      inactiveFromDate: "2026-07-10",
+    };
+
+    expect(isGoalActiveOn(bounded, "2026-07-02")).toBe(false);
+    expect(isGoalActiveOn(bounded, "2026-07-03")).toBe(true);
+    expect(isGoalActiveOn(bounded, "2026-07-09")).toBe(true);
+    expect(isGoalActiveOn(bounded, "2026-07-10")).toBe(false);
+  });
+
+  it("classifies membership over only in-cycle days of a calendar week", () => {
+    const original = { ...strengthGoal, activeFromDate: cycle.startDate };
+    const addedFriday = { ...strengthGoal, activeFromDate: "2026-07-03" };
+    const stoppedFriday = {
+      ...strengthGoal,
+      activeFromDate: cycle.startDate,
+      inactiveFromDate: "2026-07-03",
+    };
+
+    expect(goalMembershipForWeek(original, cycle, "2026-06-29")).toBe(
+      "full",
+    );
+    expect(goalMembershipForWeek(addedFriday, cycle, "2026-06-29")).toBe(
+      "partial",
+    );
+    expect(goalMembershipForWeek(stoppedFriday, cycle, "2026-06-29")).toBe(
+      "partial",
+    );
+    expect(goalMembershipForWeek(stoppedFriday, cycle, "2026-07-06")).toBe(
+      "inactive",
+    );
+  });
+
+  it("keeps raw partial-week effort while exposing its denominator status", () => {
+    const added = { ...strengthGoal, activeFromDate: "2026-07-22" };
+    const logs = [
+      {
+        ...strengthLogs[0],
+        localDate: "2026-07-22",
+        startedAt: "2026-07-22T00:00:00.000Z",
+      },
+    ];
+
+    expect(
+      calculateGoalWeekProgress(added, [], logs, "2026-07-23", cycle),
+    ).toMatchObject({
+      sessionCount: 1,
+      minutesLogged: 60,
+      membership: "partial",
+    });
+    expect(calculateGoalStreak(added, [], logs, "2026-07-23", cycle)).toBe(0);
   });
 });
 
@@ -104,6 +176,8 @@ describe("calculateGoalStreak", () => {
     cadence: "daily",
     weeklyTargetCount: 7,
     expectedDurationMinutes: 20,
+    activeFromDate: "2026-07-01",
+    inactiveFromDate: null,
     createdAt: "2026-07-01T00:00:00.000Z",
   };
 

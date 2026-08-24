@@ -1,5 +1,6 @@
 import { calculateGoalStreak, goalConfigurationOn } from "./cycleProgress";
 import { addLocalDays, weekStart } from "./date";
+import { goalMembershipForWeek } from "./goalMembership";
 import type { Cycle, CycleGoal, GoalRevision, SessionLog } from "./types";
 
 export type HistoryTrendWeek = {
@@ -10,6 +11,7 @@ export type HistoryTrendWeek = {
   targetCount: number;
   completionRatio: number;
   isInProgress: boolean;
+  partialGoalCount: number;
 };
 
 export type HistoryPracticeInsight = {
@@ -21,6 +23,7 @@ export type HistoryPracticeInsight = {
   targetCount: number;
   completionRatio: number;
   currentStreak: number;
+  partialWeekCount: number;
 };
 
 export type HistoryInsights = {
@@ -114,8 +117,16 @@ function buildTrend(
     const targetDate = sunday > cycle.endDate ? cycle.endDate : sunday;
     let completedTowardTarget = 0;
     let targetCount = 0;
+    let partialGoalCount = 0;
 
     for (const goal of goals) {
+      const membership = goalMembershipForWeek(goal, cycle, monday);
+      if (membership === "partial") {
+        partialGoalCount += 1;
+      }
+      if (membership !== "full") {
+        continue;
+      }
       const target = goalConfigurationOn(goal, revisions, targetDate).weeklyTargetCount;
       const sessionCount = weekLogs.filter((log) => log.cycleGoalId === goal.id).length;
       targetCount += target;
@@ -133,6 +144,7 @@ function buildTrend(
       targetCount,
       completionRatio: targetCount === 0 ? 0 : completedTowardTarget / targetCount,
       isInProgress: monday === weekStart(today) && today <= cycle.endDate,
+      partialGoalCount,
     });
 
     monday = addLocalDays(monday, 7);
@@ -166,8 +178,20 @@ export function buildHistoryInsights(
     const goalLogs = inRangeLogs.filter((log) => log.cycleGoalId === goal.id);
     let completedTowardTarget = 0;
     let targetCount = 0;
+    let partialWeekCount = 0;
 
     for (const week of trend) {
+      const membership = goalMembershipForWeek(
+        goal,
+        cycle,
+        week.weekStartDate,
+      );
+      if (membership === "partial") {
+        partialWeekCount += 1;
+      }
+      if (membership !== "full") {
+        continue;
+      }
       const target = goalConfigurationOn(
         goal,
         revisions,
@@ -202,7 +226,9 @@ export function buildHistoryInsights(
         revisions,
         inRangeLogs,
         throughDate,
+        cycle,
       ),
+      partialWeekCount,
     };
   });
 

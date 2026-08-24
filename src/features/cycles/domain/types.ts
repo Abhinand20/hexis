@@ -21,6 +21,10 @@ export type CycleGoal = {
   cadence: GoalCadence;
   weeklyTargetCount: number;
   expectedDurationMinutes: number | null;
+  /** Inclusive local date on which this practice joins the cycle. */
+  activeFromDate: string;
+  /** Exclusive local date on which this practice leaves the cycle. */
+  inactiveFromDate: string | null;
   createdAt: string;
 };
 

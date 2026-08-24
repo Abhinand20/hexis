@@ -28,6 +28,17 @@ describe("cycle, goal, and session repositories", () => {
     sessionRepository = createSessionRepository(db);
   });
 
+  it("starts every new-cycle practice on the cycle start date", async () => {
+    const cycle = await cycleRepository.createCycle(createCycleInput());
+
+    const goals = await goalRepository.listForCycle(cycle.id);
+    expect(goals).toHaveLength(4);
+    expect(goals.every((goal) => goal.activeFromDate === cycle.startDate)).toBe(
+      true,
+    );
+    expect(goals.every((goal) => goal.inactiveFromDate === null)).toBe(true);
+  });
+
   it("rejects a revision effectiveDate before the cycle startDate", async () => {
     const cycle = await cycleRepository.createCycle(createCycleInput());
     const [goal] = await goalRepository.listForCycle(cycle.id);

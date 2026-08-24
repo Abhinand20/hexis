@@ -274,4 +274,75 @@ describe("session repository timestamps and corrections", () => {
     );
     await expect(repository.getAuditHistory("missing-log")).resolves.toBeNull();
   });
+
+  it("rejects new sessions outside a practice membership window", async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 6, 15, 12));
+    const goalRepository = createGoalRepository(db);
+    const added = await goalRepository.createForActiveCycle(
+      {
+        cycleId,
+        name: "Mobility",
+        cadence: "daily",
+        weeklyTargetCount: 5,
+        expectedDurationMinutes: 15,
+      },
+      "2026-07-15",
+    );
+
+    await expect(
+      createSessionRepository(db).create({
+        cycleGoalId: added.id,
+        startedAt: new Date(2026, 6, 14, 8).toISOString(),
+        durationMinutes: 15,
+      }),
+    ).rejects.toThrow(/not active/i);
+  });
+
+  it("grandfathers same-day sessions after stop but rejects new or moved work", async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 6, 15, 12));
+    const sessionRepository = createSessionRepository(db);
+    const goalRepository = createGoalRepository(db);
+    const stoppedSource = await sessionRepository.create({
+      cycleGoalId: goalId,
+      startedAt: new Date(2026, 6, 15, 8).toISOString(),
+      durationMinutes: 30,
+    });
+    const movableSource = await sessionRepository.create({
+      cycleGoalId: secondGoalId,
+      startedAt: new Date(2026, 6, 15, 9).toISOString(),
+      durationMinutes: 20,
+    });
+
+    await goalRepository.stopTracking(goalId, "2026-07-15");
+
+    expect(await sessionRepository.listForDay(cycleId, "2026-07-15")).toHaveLength(
+      2,
+    );
+    await expect(
+      sessionRepository.correct(stoppedSource.id, {
+        cycleGoalId: goalId,
+        startedAt: new Date(2026, 6, 15, 10).toISOString(),
+        durationMinutes: 45,
+      }),
+    ).resolves.toMatchObject({
+      id: stoppedSource.id,
+      cycleGoalId: goalId,
+      localDate: "2026-07-15",
+      durationMinutes: 45,
+    });
+    await expect(
+      sessionRepository.create({
+        cycleGoalId: goalId,
+        startedAt: new Date(2026, 6, 15, 11).toISOString(),
+        durationMinutes: 30,
+      }),
+    ).rejects.toThrow(/not active/i);
+    await expect(
+      sessionRepository.correct(movableSource.id, {
+        cycleGoalId: goalId,
+        startedAt: new Date(2026, 6, 15, 11).toISOString(),
+        durationMinutes: 20,
+      }),
+    ).rejects.toThrow(/not active/i);
+  });
 });

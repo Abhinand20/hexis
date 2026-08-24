@@ -1,4 +1,4 @@
-import type { Cycle } from "../features/cycles/domain/types";
+import type { Cycle, CycleGoal } from "../features/cycles/domain/types";
 import type { CreateCycleInput } from "../features/cycles/data/cycleRepository";
 
 export function createCycle(overrides: Partial<Cycle> = {}): Cycle {
@@ -47,6 +47,23 @@ export function createCycleInput(
         expectedDurationMinutes: null,
       },
     ],
+    ...overrides,
+  };
+}
+
+export function createCycleGoal(
+  overrides: Partial<CycleGoal> = {},
+): CycleGoal {
+  return {
+    id: "goal-1",
+    cycleId: "cycle-1",
+    name: "Write",
+    cadence: "daily",
+    weeklyTargetCount: 5,
+    expectedDurationMinutes: 30,
+    activeFromDate: "2026-07-24",
+    inactiveFromDate: null,
+    createdAt: "2026-07-24T00:00:00.000Z",
     ...overrides,
   };
 }

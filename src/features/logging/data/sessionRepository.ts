@@ -9,6 +9,7 @@ import type {
   SessionLogAuditHistory,
   SessionLogRevision,
 } from "../../cycles/domain/types";
+import { isGoalActiveOn } from "../../cycles/domain/goalMembership";
 
 export type CreateSessionLogInput = {
   cycleGoalId: string;
@@ -61,6 +62,11 @@ type SourceCycleRow = {
   cycle_id: string;
   start_date: string;
   end_date: string;
+};
+
+type GoalCycleRow = SourceCycleRow & {
+  active_from_date: string;
+  inactive_from_date: string | null;
 };
 
 function mapSessionLog(row: SessionLogRow): SessionLog {
@@ -153,16 +159,35 @@ async function sourceCycleForSession(
 async function cycleForGoal(
   db: SQLiteDatabase,
   cycleGoalId: string,
-): Promise<SourceCycleRow | null> {
-  return db.getFirstAsync<SourceCycleRow>(
+): Promise<GoalCycleRow | null> {
+  return db.getFirstAsync<GoalCycleRow>(
     `SELECT cycles.id AS cycle_id,
             cycles.start_date AS start_date,
-            cycles.end_date AS end_date
+            cycles.end_date AS end_date,
+            cycle_goals.active_from_date AS active_from_date,
+            cycle_goals.inactive_from_date AS inactive_from_date
      FROM cycle_goals
      INNER JOIN cycles ON cycle_goals.cycle_id = cycles.id
      WHERE cycle_goals.id = ?`,
     [cycleGoalId],
   );
+}
+
+function validateGoalMembership(
+  goal: GoalCycleRow,
+  localDate: string,
+): void {
+  if (
+    !isGoalActiveOn(
+      {
+        activeFromDate: goal.active_from_date,
+        inactiveFromDate: goal.inactive_from_date,
+      },
+      localDate,
+    )
+  ) {
+    throw new Error("Practice is not active on the session date");
+  }
 }
 
 function validateSessionDate(
@@ -226,6 +251,7 @@ export function createSessionRepository(db: SQLiteDatabase): SessionRepository {
         durationMinutes: input.durationMinutes,
         createdAt,
       };
+      validateGoalMembership(cycle, session.localDate);
 
       await db.runAsync(
         `INSERT INTO session_logs (
@@ -282,6 +308,19 @@ export function createSessionRepository(db: SQLiteDatabase): SessionRepository {
         }
 
         const localDate = validateSessionDate(input.startedAt, sourceCycle);
+        const effective = await db.getFirstAsync<SessionLogRow>(
+          `${effectiveSessionSql("session_logs.id = ?")}`,
+          [sourceSessionId],
+        );
+        if (!effective) {
+          throw new Error(`Session log not found: ${sourceSessionId}`);
+        }
+        const keepsGrandfatheredMembership =
+          effective.cycle_goal_id === input.cycleGoalId &&
+          effective.local_date === localDate;
+        if (!keepsGrandfatheredMembership) {
+          validateGoalMembership(targetCycle, localDate);
+        }
         await insertRevision(db, sourceSessionId, {
           cycleGoalId: input.cycleGoalId,
           localDate,

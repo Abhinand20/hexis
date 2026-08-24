@@ -89,8 +89,9 @@ export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
           await db.runAsync(
             `INSERT INTO cycle_goals (
               id, cycle_id, name, cadence, weekly_target_count,
-              expected_duration_minutes, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              expected_duration_minutes, active_from_date,
+              inactive_from_date, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               generateId("goal"),
               cycle.id,
@@ -98,6 +99,8 @@ export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
               goal.cadence,
               goal.weeklyTargetCount,
               goal.expectedDurationMinutes,
+              cycle.startDate,
+              null,
               createdAt,
             ],
           );

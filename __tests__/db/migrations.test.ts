@@ -1,7 +1,12 @@
 import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 
 import { runMigrations } from "../../src/db/migrations";
-import { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3 } from "../../src/db/schema";
+import {
+  SCHEMA_V1,
+  SCHEMA_V2,
+  SCHEMA_V3,
+  SCHEMA_V4,
+} from "../../src/db/schema";
 
 async function createVersionTwoDatabase(): Promise<SQLiteDatabase> {
   const db = await openDatabaseAsync(":memory:");
@@ -55,7 +60,7 @@ it("backfills V2 session start timestamps from their creation timestamps", async
   await runMigrations(db);
 
   expect(await db.getFirstAsync("PRAGMA user_version")).toEqual({
-    user_version: 4,
+    user_version: 5,
   });
   expect(
     await db.getFirstAsync(
@@ -72,6 +77,16 @@ it("backfills V2 session start timestamps from their creation timestamps", async
       "SELECT COUNT(*) AS count FROM session_log_revisions",
     ),
   ).toEqual({ count: 0 });
+  expect(
+    await db.getFirstAsync(
+      `SELECT active_from_date, inactive_from_date
+       FROM cycle_goals WHERE id = ?`,
+      ["goal-1"],
+    ),
+  ).toEqual({
+    active_from_date: "2026-07-01",
+    inactive_from_date: null,
+  });
 });
 
 it("adds revision storage without changing existing V3 session facts", async () => {
@@ -127,7 +142,7 @@ it("adds revision storage without changing existing V3 session facts", async () 
   await runMigrations(db);
 
   expect(await db.getFirstAsync("PRAGMA user_version")).toEqual({
-    user_version: 4,
+    user_version: 5,
   });
   expect(
     await db.getFirstAsync(
@@ -152,4 +167,108 @@ it("adds revision storage without changing existing V3 session facts", async () 
   ).toEqual(
     expect.objectContaining({ sql: expect.stringContaining("AUTOINCREMENT") }),
   );
+  expect(
+    await db.getFirstAsync(
+      `SELECT active_from_date, inactive_from_date
+       FROM cycle_goals WHERE id = ?`,
+      ["goal-v3"],
+    ),
+  ).toEqual({
+    active_from_date: "2026-07-01",
+    inactive_from_date: null,
+  });
+});
+
+it("upgrades a real V4 database and backfills membership without changing revisions", async () => {
+  const db = await openDatabaseAsync(":memory:");
+  for (const statement of [
+    ...SCHEMA_V1,
+    ...SCHEMA_V2,
+    ...SCHEMA_V3,
+    ...SCHEMA_V4,
+  ]) {
+    await db.execAsync(statement);
+  }
+  await db.execAsync("PRAGMA user_version = 4;");
+  await db.runAsync(
+    `INSERT INTO cycles (
+      id, name, start_date, duration_days, end_date, status, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      "cycle-v4",
+      "Existing cycle",
+      "2026-08-01",
+      30,
+      "2026-08-30",
+      "active",
+      "2026-08-01T00:00:00.000Z",
+    ],
+  );
+  await db.runAsync(
+    `INSERT INTO cycle_goals (
+      id, cycle_id, name, cadence, weekly_target_count,
+      expected_duration_minutes, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      "goal-v4",
+      "cycle-v4",
+      "Read",
+      "daily",
+      7,
+      20,
+      "2026-08-01T00:00:00.000Z",
+    ],
+  );
+  await db.runAsync(
+    `INSERT INTO goal_revisions (
+      id, cycle_goal_id, effective_date, name, cadence,
+      weekly_target_count, expected_duration_minutes, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      "revision-v4",
+      "goal-v4",
+      "2026-08-10",
+      "Read fiction",
+      "daily",
+      7,
+      25,
+      "2026-08-10T00:00:00.000Z",
+    ],
+  );
+
+  await runMigrations(db);
+
+  expect(await db.getFirstAsync("PRAGMA user_version")).toEqual({
+    user_version: 5,
+  });
+  expect(
+    await db.getFirstAsync(
+      `SELECT active_from_date, inactive_from_date
+       FROM cycle_goals WHERE id = ?`,
+      ["goal-v4"],
+    ),
+  ).toEqual({
+    active_from_date: "2026-08-01",
+    inactive_from_date: null,
+  });
+  expect(
+    await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM goal_revisions WHERE id = ?",
+      ["revision-v4"],
+    ),
+  ).toEqual({ count: 1 });
+  expect(
+    await db.getFirstAsync<{ notnull: number }>(
+      `SELECT "notnull" AS "notnull"
+       FROM pragma_table_info('cycle_goals')
+       WHERE name = 'active_from_date'`,
+    ),
+  ).toEqual({ notnull: 1 });
+  expect(
+    await db.getFirstAsync<{ table: string }>(
+      `SELECT "table" AS "table"
+       FROM pragma_foreign_key_list('cycle_goals')
+       WHERE "from" = 'cycle_id'`,
+    ),
+  ).toEqual({ table: "cycles" });
 });

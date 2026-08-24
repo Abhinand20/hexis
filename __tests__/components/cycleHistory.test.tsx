@@ -115,6 +115,8 @@ const strengthGoal: CycleGoal = {
   cadence: "weekly",
   weeklyTargetCount: 3,
   expectedDurationMinutes: 60,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
@@ -125,6 +127,8 @@ const readGoal: CycleGoal = {
   cadence: "daily",
   weeklyTargetCount: 7,
   expectedDurationMinutes: 20,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 

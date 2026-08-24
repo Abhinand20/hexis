@@ -13,6 +13,8 @@ const writeGoal: CycleGoal = {
   cadence: "daily",
   weeklyTargetCount: 5,
   expectedDurationMinutes: 30,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
@@ -23,6 +25,8 @@ const runGoal: CycleGoal = {
   cadence: "weekly",
   weeklyTargetCount: 3,
   expectedDurationMinutes: 45,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
@@ -33,6 +37,8 @@ const readGoal: CycleGoal = {
   cadence: "daily",
   weeklyTargetCount: 7,
   expectedDurationMinutes: 20,
+  activeFromDate: "2026-07-01",
+  inactiveFromDate: null,
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
@@ -298,6 +304,26 @@ describe("buildDaySummary", () => {
       },
     ]);
   });
+
+  it("lists active practices plus stopped practices that retain effective sessions", () => {
+    const stopped = {
+      ...writeGoal,
+      inactiveFromDate: "2026-07-15",
+    };
+    const addedLater = {
+      ...readGoal,
+      activeFromDate: "2026-07-20",
+    };
+
+    expect(
+      buildDaySummary(
+        [stopped, runGoal, addedLater],
+        [],
+        [log(stopped.id, "2026-07-15", 30)],
+        "2026-07-15",
+      ).practices.map((practice) => practice.goalId),
+    ).toEqual([stopped.id, runGoal.id]);
+  });
 });
 
 describe("buildWeekSummary", () => {
@@ -360,6 +386,7 @@ describe("buildWeekSummary", () => {
         sessionTarget: 5,
         minutesLogged: 30,
         minutesTarget: 150,
+        membership: "full",
         met: false,
       },
       {
@@ -369,6 +396,7 @@ describe("buildWeekSummary", () => {
         sessionTarget: 3,
         minutesLogged: 135,
         minutesTarget: 135,
+        membership: "full",
         met: true,
       },
       {
@@ -378,9 +406,36 @@ describe("buildWeekSummary", () => {
         sessionTarget: 7,
         minutesLogged: 20,
         minutesTarget: 140,
+        membership: "full",
         met: false,
       },
     ]);
     expect(summary.missedTargetGoalNames).toEqual(["Write", "Read"]);
+  });
+
+  it("shows partial-week raw work without scoring it as met or missed", () => {
+    const cycle = createCycle({
+      id: "cycle-1",
+      startDate: "2026-07-01",
+      endDate: "2026-07-30",
+    });
+    const added = { ...writeGoal, activeFromDate: "2026-07-22" };
+    const summary = buildWeekSummary(
+      [added],
+      [],
+      [log(added.id, "2026-07-22", 30)],
+      "2026-07-20",
+      cycle,
+    );
+
+    expect(summary.practiceProgress).toEqual([
+      expect.objectContaining({
+        sessionCount: 1,
+        minutesLogged: 30,
+        membership: "partial",
+        met: null,
+      }),
+    ]);
+    expect(summary.missedTargetGoalNames).toEqual([]);
   });
 });

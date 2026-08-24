@@ -1,5 +1,11 @@
 import { addLocalDays, weekStart } from "./date";
+import {
+  goalMembershipForWeek,
+  isGoalActiveOn,
+  type GoalWeekMembership,
+} from "./goalMembership";
 import type {
+  Cycle,
   CycleGoal,
   GoalConfiguration,
   GoalRevision,
@@ -38,11 +44,13 @@ export function calculateGoalWeekProgress(
   revisions: GoalRevision[],
   logs: SessionLog[],
   today: string,
+  cycle?: Cycle,
 ): {
   sessionCount: number;
   sessionTarget: number;
   minutesLogged: number;
   minutesTarget: number | null;
+  membership: GoalWeekMembership;
 } {
   const start = weekStart(today);
   const end = addLocalDays(start, 6);
@@ -65,13 +73,33 @@ export function calculateGoalWeekProgress(
     config.expectedDurationMinutes === null
       ? null
       : config.weeklyTargetCount * config.expectedDurationMinutes;
+  const membership = cycle
+    ? goalMembershipForWeek(goal, cycle, start)
+    : membershipAcrossCalendarWeek(goal, start);
 
   return {
     sessionCount,
     sessionTarget,
     minutesLogged,
     minutesTarget,
+    membership,
   };
+}
+
+function membershipAcrossCalendarWeek(
+  goal: CycleGoal,
+  monday: string,
+): GoalWeekMembership {
+  let activeDays = 0;
+  for (let offset = 0; offset < 7; offset += 1) {
+    if (isGoalActiveOn(goal, addLocalDays(monday, offset))) {
+      activeDays += 1;
+    }
+  }
+  if (activeDays === 0) {
+    return "inactive";
+  }
+  return activeDays === 7 ? "full" : "partial";
 }
 
 /**
@@ -90,14 +118,22 @@ export function calculateGoalStreak(
   revisions: GoalRevision[],
   logs: SessionLog[],
   today: string,
+  cycle?: Cycle,
 ): number {
   const goalLogs = logs.filter((log) => log.cycleGoalId === goal.id);
   return goal.cadence === "daily"
-    ? calculateDailyStreak(goalLogs, today)
-    : calculateWeeklyStreak(goal, revisions, goalLogs, today);
+    ? calculateDailyStreak(goal, goalLogs, today)
+    : calculateWeeklyStreak(goal, revisions, goalLogs, today, cycle);
 }
 
-function calculateDailyStreak(goalLogs: SessionLog[], today: string): number {
+function calculateDailyStreak(
+  goal: CycleGoal,
+  goalLogs: SessionLog[],
+  today: string,
+): number {
+  if (!isGoalActiveOn(goal, today)) {
+    return 0;
+  }
   const loggedDates = new Set(goalLogs.map((log) => log.localDate));
 
   let cursor = today;
@@ -107,7 +143,7 @@ function calculateDailyStreak(goalLogs: SessionLog[], today: string): number {
   }
 
   let streak = 0;
-  while (loggedDates.has(cursor)) {
+  while (isGoalActiveOn(goal, cursor) && loggedDates.has(cursor)) {
     streak += 1;
     cursor = addLocalDays(cursor, -1);
   }
@@ -119,7 +155,11 @@ function calculateWeeklyStreak(
   revisions: GoalRevision[],
   goalLogs: SessionLog[],
   today: string,
+  cycle?: Cycle,
 ): number {
+  if (!isGoalActiveOn(goal, today)) {
+    return 0;
+  }
   let streak = 0;
   let cursor = weekStart(today);
   let isCurrentWeek = true;
@@ -127,6 +167,12 @@ function calculateWeeklyStreak(
   while (true) {
     const start = cursor;
     const end = addLocalDays(start, 6);
+    const membership = cycle
+      ? goalMembershipForWeek(goal, cycle, start)
+      : membershipAcrossCalendarWeek(goal, start);
+    if (membership !== "full") {
+      break;
+    }
     const sessionCount = goalLogs.filter(
       (log) => log.localDate >= start && log.localDate <= end,
     ).length;
@@ -157,11 +203,18 @@ export function calendarDayIntensity(
   logs: SessionLog[],
   localDate: string,
 ): 0 | 1 | 2 {
-  if (cycleGoals.length === 0) {
+  const relevantGoals = cycleGoals.filter(
+    (goal) =>
+      isGoalActiveOn(goal, localDate) ||
+      logs.some(
+        (log) => log.cycleGoalId === goal.id && log.localDate === localDate,
+      ),
+  );
+  if (relevantGoals.length === 0) {
     return 0;
   }
 
-  const count = cycleGoals.filter((goal) =>
+  const count = relevantGoals.filter((goal) =>
     logs.some((log) => log.cycleGoalId === goal.id && log.localDate === localDate),
   ).length;
 
@@ -169,5 +222,5 @@ export function calendarDayIntensity(
     return 0;
   }
 
-  return count / cycleGoals.length < 0.5 ? 1 : 2;
+  return count / relevantGoals.length < 0.5 ? 1 : 2;
 }
