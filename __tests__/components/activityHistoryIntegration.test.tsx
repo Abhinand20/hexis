@@ -65,6 +65,8 @@ const strengthGoal = {
   cadence: "weekly" as const,
   weeklyTargetCount: 3,
   expectedDurationMinutes: 60,
+  activeFromDate: "2026-08-01",
+  inactiveFromDate: null,
   createdAt: "2026-08-01T07:00:00.000Z",
 };
 
