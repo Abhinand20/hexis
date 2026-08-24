@@ -21,6 +21,8 @@ export type CreateCycleInput = {
 export interface CycleRepository {
   createCycle(input: CreateCycleInput): Promise<Cycle>;
   getActiveCycle(today?: string): Promise<Cycle | null>;
+  getCycleById(cycleId: string): Promise<Cycle | null>;
+  listCycles(): Promise<Cycle[]>;
   getMostRecentCycle(): Promise<Cycle | null>;
   endCycleEarly(cycleId: string, localDate: string): Promise<void>;
 }
@@ -123,6 +125,26 @@ export function createCycleRepository(db: SQLiteDatabase): CycleRepository {
       }
 
       return cycle;
+    },
+
+    async getCycleById(cycleId) {
+      const row = await db.getFirstAsync<CycleRow>(
+        "SELECT * FROM cycles WHERE id = ?",
+        [cycleId],
+      );
+      return row ? mapCycle(row) : null;
+    },
+
+    async listCycles() {
+      const rows = await db.getAllAsync<CycleRow>(
+        `SELECT * FROM cycles
+         ORDER BY
+           CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+           start_date DESC,
+           created_at DESC,
+           id DESC`,
+      );
+      return rows.map(mapCycle);
     },
 
     async getMostRecentCycle() {

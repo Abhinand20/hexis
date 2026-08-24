@@ -164,4 +164,101 @@ describe("cycle, goal, and session repositories", () => {
       ),
     ).resolves.toMatchObject({ name: "Next", status: "active" });
   });
+
+  it("gets a cycle by id without changing its stored status", async () => {
+    const cycle = await cycleRepository.createCycle(
+      createCycleInput({ startDate: "2025-01-01", durationDays: 30 }),
+    );
+
+    await expect(cycleRepository.getCycleById(cycle.id)).resolves.toEqual(cycle);
+    await expect(cycleRepository.getCycleById("missing-cycle")).resolves.toBeNull();
+
+    const stored = await db.getFirstAsync<{ status: string }>(
+      "SELECT status FROM cycles WHERE id = ?",
+      [cycle.id],
+    );
+    expect(stored).toEqual({ status: "active" });
+  });
+
+  it("lists every cycle with active first and deterministic recency ordering without completing cycles", async () => {
+    const rows = [
+      [
+        "ended-recent",
+        "Ended recent",
+        "2026-08-01",
+        30,
+        "2026-08-30",
+        "ended_early",
+        "2026-08-02T00:00:00.000Z",
+      ],
+      [
+        "completed-created-first",
+        "Completed created first",
+        "2026-07-01",
+        30,
+        "2026-07-30",
+        "completed",
+        "2026-07-02T00:00:00.000Z",
+      ],
+      [
+        "completed-tie-a",
+        "Completed tie A",
+        "2026-07-01",
+        30,
+        "2026-07-30",
+        "completed",
+        "2026-07-03T00:00:00.000Z",
+      ],
+      [
+        "completed-tie-b",
+        "Completed tie B",
+        "2026-07-01",
+        30,
+        "2026-07-30",
+        "completed",
+        "2026-07-03T00:00:00.000Z",
+      ],
+      [
+        "active-old",
+        "Active old",
+        "2025-01-01",
+        30,
+        "2025-01-30",
+        "active",
+        "2025-01-01T00:00:00.000Z",
+      ],
+    ] as const;
+
+    for (const row of rows) {
+      await db.runAsync(
+        `INSERT INTO cycles (
+          id, name, start_date, duration_days, end_date, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [...row],
+      );
+    }
+
+    const cycles = await cycleRepository.listCycles();
+
+    expect(cycles.map((cycle) => cycle.id)).toEqual([
+      "active-old",
+      "ended-recent",
+      "completed-tie-b",
+      "completed-tie-a",
+      "completed-created-first",
+    ]);
+    expect(cycles.map((cycle) => cycle.status)).toEqual([
+      "active",
+      "ended_early",
+      "completed",
+      "completed",
+      "completed",
+    ]);
+
+    const storedActive = await db.getFirstAsync<{ status: string }>(
+      "SELECT status FROM cycles WHERE id = ?",
+      ["active-old"],
+    );
+    expect(storedActive).toEqual({ status: "active" });
+  });
 });
