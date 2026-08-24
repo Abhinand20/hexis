@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -7,6 +7,7 @@ import { colors, spacing } from "../../../../src/design/tokens";
 import { useDatabase } from "../../../../src/db/DatabaseProvider";
 import { createCycleRepository } from "../../../../src/features/cycles/data/cycleRepository";
 import { goalConfigurationOn } from "../../../../src/features/cycles/domain/cycleProgress";
+import { todayLocalDate } from "../../../../src/features/cycles/domain/date";
 import type { GoalConfiguration } from "../../../../src/features/cycles/domain/types";
 import {
   GoalEditor,
@@ -15,13 +16,6 @@ import {
 import { createGoalRepository } from "../../../../src/features/goals/data/goalRepository";
 import { useUpdateGoal } from "../../../../src/features/goals/hooks/useUpdateGoal";
 
-function formatLocalDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 type LoadState =
   | { status: "loading" }
   | { status: "unavailable" }
@@ -29,7 +23,22 @@ type LoadState =
       status: "ready";
       initialValue: GoalEditorValue;
       today: string;
+      goalName: string;
+      canStopTracking: boolean;
     };
+
+function stopTrackingErrorMessage(error: unknown): string {
+  if (
+    error instanceof Error &&
+    error.message === "An active cycle must keep at least one practice"
+  ) {
+    return "Add another practice first, or end this cycle before stopping its last practice.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "Unable to stop tracking this practice. Try again.";
+}
 
 export default function EditGoalScreen() {
   const { cycleId, goalId } = useLocalSearchParams<{
@@ -43,6 +52,8 @@ export default function EditGoalScreen() {
 
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [stopPending, setStopPending] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!db) {
@@ -78,7 +89,7 @@ export default function EditGoalScreen() {
         return;
       }
 
-      const today = formatLocalDate(new Date());
+      const today = todayLocalDate();
       const config: GoalConfiguration = goalConfigurationOn(
         goal,
         revisions,
@@ -88,6 +99,10 @@ export default function EditGoalScreen() {
       setLoadState({
         status: "ready",
         today,
+        goalName: config.name,
+        canStopTracking:
+          goal.activeFromDate < today &&
+          (goal.inactiveFromDate === null || goal.inactiveFromDate > today),
         initialValue: {
           name: config.name,
           cadence: config.cadence,
@@ -132,6 +147,54 @@ export default function EditGoalScreen() {
     }
   }
 
+  function openStopConfirmation() {
+    if (
+      loadState.status !== "ready" ||
+      !loadState.canStopTracking ||
+      stopPending
+    ) {
+      return;
+    }
+
+    setStopError(null);
+    const effectiveDate = todayLocalDate();
+    Alert.alert(
+      `Stop tracking ${loadState.goalName}?`,
+      `This takes effect today, ${effectiveDate}. Earlier logs and history for this practice will remain unchanged.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Stop tracking",
+          style: "destructive",
+          onPress: () => {
+            void handleStopTracking(effectiveDate);
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleStopTracking(effectiveDate: string) {
+    if (
+      loadState.status !== "ready" ||
+      !loadState.canStopTracking ||
+      stopPending
+    ) {
+      return;
+    }
+
+    setStopPending(true);
+    setStopError(null);
+
+    try {
+      await createGoalRepository(db!).stopTracking(goalId, effectiveDate);
+      router.back();
+    } catch (error) {
+      setStopError(stopTrackingErrorMessage(error));
+      setStopPending(false);
+    }
+  }
+
   if (loadState.status === "loading") {
     return null;
   }
@@ -162,25 +225,42 @@ export default function EditGoalScreen() {
     <View
       style={[
         styles.screen,
-        { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl },
+        {
+          paddingTop: insets.top + spacing.xl,
+          paddingBottom: insets.bottom + spacing.xl,
+        },
       ]}
     >
       <View style={styles.section}>
         <Text style={styles.copy}>
           Changes apply from today. Earlier logged sessions won't change.
         </Text>
-        {submitError ? <Text style={styles.error}>{submitError}</Text> : null}
       </View>
 
       <GoalEditor
         initialValue={loadState.initialValue}
+        isSaving={isPending || stopPending}
         mode="editingActiveGoal"
         onCancel={goBack}
         onSave={(value) => {
-          if (!isPending) {
+          if (!isPending && !stopPending) {
             void handleSave(value);
           }
         }}
+        secondaryAction={
+          loadState.canStopTracking
+            ? {
+                accessibilityHint:
+                  "Stops future tracking without changing earlier history",
+                disabled: stopPending,
+                label: stopPending
+                  ? "Stopping practice…"
+                  : "Stop tracking this practice",
+                onPress: openStopConfirmation,
+              }
+            : undefined
+        }
+        submitError={stopError ?? submitError}
       />
     </View>
   );
