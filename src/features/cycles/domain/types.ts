@@ -43,6 +43,22 @@ export type SessionLog = {
   createdAt: string;
 };
 
+export type SessionLogRevision = {
+  sequence: number;
+  sourceSessionId: string;
+  cycleGoalId: string;
+  localDate: string;
+  startedAt: string;
+  durationMinutes: number | null;
+  tombstone: boolean;
+  createdAt: string;
+};
+
+export type SessionLogAuditHistory = {
+  original: SessionLog;
+  revisions: SessionLogRevision[];
+};
+
 export type GoalConfiguration = {
   name: string;
   cadence: GoalCadence;

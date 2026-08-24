@@ -64,3 +64,18 @@ FROM session_logs`,
   `DROP TABLE session_logs`,
   `ALTER TABLE session_logs_v3 RENAME TO session_logs`,
 ];
+
+export const SCHEMA_V4: string[] = [
+  `CREATE TABLE session_log_revisions (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_session_id TEXT NOT NULL REFERENCES session_logs(id),
+  cycle_goal_id TEXT NOT NULL REFERENCES cycle_goals(id),
+  local_date TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes > 0),
+  tombstone INTEGER NOT NULL CHECK (tombstone IN (0, 1)),
+  created_at TEXT NOT NULL
+)`,
+  `CREATE INDEX session_log_revisions_source_sequence
+ON session_log_revisions(source_session_id, sequence DESC)`,
+];
