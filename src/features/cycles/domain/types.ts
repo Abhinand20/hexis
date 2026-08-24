@@ -38,6 +38,7 @@ export type SessionLog = {
   id: string;
   cycleGoalId: string;
   localDate: string;
+  startedAt: string;
   durationMinutes: number | null;
   createdAt: string;
 };

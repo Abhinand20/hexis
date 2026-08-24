@@ -36,6 +36,7 @@ function log(
     id,
     cycleGoalId,
     localDate,
+    startedAt: `${localDate}T12:00:00.000Z`,
     durationMinutes,
     createdAt: `${localDate}T12:00:00.000Z`,
   };

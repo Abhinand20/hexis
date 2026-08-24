@@ -538,6 +538,7 @@ describe("CycleLandingScreen", () => {
       id: "log-1",
       cycleGoalId: "goal-strength",
       localDate: "2026-07-25",
+      startedAt: "2026-07-25T00:00:00.000Z",
       durationMinutes: 60,
       createdAt: "2026-07-25T00:00:00.000Z",
     });
@@ -556,12 +557,10 @@ describe("CycleLandingScreen", () => {
     });
     expect(screen.getByText("Logged · 60 min")).toBeTruthy();
     expect(mockImpactAsync).toHaveBeenCalledWith("light");
-    expect(mockCreateSessionLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cycleGoalId: "goal-strength",
-        durationMinutes: 60,
-      }),
-    );
+    expect(mockCreateSessionLog).toHaveBeenCalledWith({
+      cycleGoalId: "goal-strength",
+      durationMinutes: 60,
+    });
 
     await user.press(screen.getByRole("button", { name: "Undo last log" }));
     await waitFor(() => {
@@ -600,6 +599,7 @@ describe("CycleLandingScreen", () => {
       id: "log-1",
       cycleGoalId: "goal-strength",
       localDate: "2026-07-25",
+      startedAt: "2026-07-25T00:00:00.000Z",
       durationMinutes: 45,
       createdAt: "2026-07-25T00:00:00.000Z",
     });
@@ -614,11 +614,9 @@ describe("CycleLandingScreen", () => {
     await waitFor(() => {
       expect(refresh).toHaveBeenCalledTimes(1);
     });
-    expect(mockCreateSessionLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cycleGoalId: "goal-strength",
-        durationMinutes: 45,
-      }),
-    );
+    expect(mockCreateSessionLog).toHaveBeenCalledWith({
+      cycleGoalId: "goal-strength",
+      durationMinutes: 45,
+    });
   });
 });

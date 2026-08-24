@@ -43,5 +43,24 @@ export const SCHEMA_V2: string[] = [
   hour INTEGER NOT NULL CHECK (hour >= 0 AND hour <= 23),
   minute INTEGER NOT NULL CHECK (minute >= 0 AND minute <= 59),
   notification_identifier TEXT
+  )`,
+];
+
+export const SCHEMA_V3: string[] = [
+  `CREATE TABLE session_logs_v3 (
+  id TEXT PRIMARY KEY NOT NULL,
+  cycle_goal_id TEXT NOT NULL REFERENCES cycle_goals(id),
+  local_date TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes > 0),
+  created_at TEXT NOT NULL
 )`,
+  `INSERT INTO session_logs_v3 (
+  id, cycle_goal_id, local_date, started_at, duration_minutes, created_at
+)
+SELECT
+  id, cycle_goal_id, local_date, created_at, duration_minutes, created_at
+FROM session_logs`,
+  `DROP TABLE session_logs`,
+  `ALTER TABLE session_logs_v3 RENAME TO session_logs`,
 ];

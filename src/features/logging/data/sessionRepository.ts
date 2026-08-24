@@ -1,10 +1,12 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import type { SessionLog } from "../../cycles/domain/types";
+import { localDateForInstant } from "../../cycles/domain/date";
 import { generateId } from "../../../db/id";
 
 export type CreateSessionLogInput = {
   cycleGoalId: string;
-  localDate: string;
+  /** Omit for a live log. Historical entry supplies the chosen ISO instant. */
+  startedAt?: string;
   durationMinutes: number | null;
 };
 
@@ -18,6 +20,7 @@ type SessionLogRow = {
   id: string;
   cycle_goal_id: string;
   local_date: string;
+  started_at: string;
   duration_minutes: number | null;
   created_at: string;
 };
@@ -27,6 +30,7 @@ function mapSessionLog(row: SessionLogRow): SessionLog {
     id: row.id,
     cycleGoalId: row.cycle_goal_id,
     localDate: row.local_date,
+    startedAt: row.started_at,
     durationMinutes: row.duration_minutes,
     createdAt: row.created_at,
   };
@@ -35,22 +39,26 @@ function mapSessionLog(row: SessionLogRow): SessionLog {
 export function createSessionRepository(db: SQLiteDatabase): SessionRepository {
   return {
     async create(input) {
+      const createdAt = new Date().toISOString();
+      const startedAt = input.startedAt ?? createdAt;
       const session: SessionLog = {
         id: generateId("log"),
         cycleGoalId: input.cycleGoalId,
-        localDate: input.localDate,
+        localDate: localDateForInstant(startedAt),
+        startedAt,
         durationMinutes: input.durationMinutes,
-        createdAt: new Date().toISOString(),
+        createdAt,
       };
 
       await db.runAsync(
         `INSERT INTO session_logs (
-          id, cycle_goal_id, local_date, duration_minutes, created_at
-        ) VALUES (?, ?, ?, ?, ?)`,
+          id, cycle_goal_id, local_date, started_at, duration_minutes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
         [
           session.id,
           session.cycleGoalId,
           session.localDate,
+          session.startedAt,
           session.durationMinutes,
           session.createdAt,
         ],

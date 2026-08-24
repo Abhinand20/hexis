@@ -38,6 +38,7 @@ beforeEach(() => {
     id: "log-1",
     cycleGoalId: "goal-strength",
     localDate: "2026-07-24",
+    startedAt: "2026-07-24T00:00:00.000Z",
     durationMinutes: 45,
     createdAt: "2026-07-24T00:00:00.000Z",
   });
@@ -55,12 +56,10 @@ it("preselects the expected duration and saves the actual selection", async () =
   await user.press(screen.getByRole("button", { name: "45 min" }));
   await user.press(screen.getByRole("button", { name: "Log 45 min" }));
 
-  expect(createSessionLog).toHaveBeenCalledWith(
-    expect.objectContaining({
-      cycleGoalId: "goal-strength",
-      durationMinutes: 45,
-    }),
-  );
+  expect(createSessionLog).toHaveBeenCalledWith({
+    cycleGoalId: "goal-strength",
+    durationMinutes: 45,
+  });
   await waitFor(() => {
     expect(onDismiss).toHaveBeenCalled();
   });
@@ -81,9 +80,10 @@ it("adds a non-standard expected duration to the selectable defaults", async () 
 
   await user.press(screen.getByRole("button", { name: "Log 20 min" }));
 
-  expect(createSessionLog).toHaveBeenCalledWith(
-    expect.objectContaining({ cycleGoalId: "goal-strength", durationMinutes: 20 }),
-  );
+  expect(createSessionLog).toHaveBeenCalledWith({
+    cycleGoalId: "goal-strength",
+    durationMinutes: 20,
+  });
   await waitFor(() => {
     expect(onDismiss).toHaveBeenCalled();
   });
@@ -102,9 +102,10 @@ it("allows saving with no duration for a count-only save", async () => {
 
   await user.press(screen.getByRole("button", { name: "Log session" }));
 
-  expect(createSessionLog).toHaveBeenCalledWith(
-    expect.objectContaining({ cycleGoalId: "goal-read", durationMinutes: null }),
-  );
+  expect(createSessionLog).toHaveBeenCalledWith({
+    cycleGoalId: "goal-read",
+    durationMinutes: null,
+  });
   await waitFor(() => {
     expect(onDismiss).toHaveBeenCalled();
   });
@@ -117,6 +118,7 @@ it("shows today's sessions and delegates undoing the latest one", async () => {
     id: "log-latest",
     cycleGoalId: "goal-strength",
     localDate: "2026-07-24",
+    startedAt: "2026-07-24T19:00:00.000Z",
     durationMinutes: 45,
     createdAt: "2026-07-24T19:00:00.000Z",
   };
@@ -132,6 +134,7 @@ it("shows today's sessions and delegates undoing the latest one", async () => {
           ...latestLog,
           id: "log-earlier",
           durationMinutes: 30,
+          startedAt: "2026-07-24T07:00:00.000Z",
           createdAt: "2026-07-24T07:00:00.000Z",
         },
       ]}

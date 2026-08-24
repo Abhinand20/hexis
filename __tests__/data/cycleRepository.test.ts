@@ -90,7 +90,7 @@ describe("cycle, goal, and session repositories", () => {
     const [firstGoal] = await goalRepository.listForCycle(firstCycle.id);
     const firstLog = await sessionRepository.create({
       cycleGoalId: firstGoal.id,
-      localDate: "2026-07-02",
+      startedAt: new Date(2026, 6, 2, 12).toISOString(),
       durationMinutes: 30,
     });
 
@@ -105,7 +105,7 @@ describe("cycle, goal, and session repositories", () => {
     const [secondGoal] = await goalRepository.listForCycle(secondCycle.id);
     const secondLog = await sessionRepository.create({
       cycleGoalId: secondGoal.id,
-      localDate: "2026-08-02",
+      startedAt: new Date(2026, 7, 2, 12).toISOString(),
       durationMinutes: 15,
     });
 
@@ -122,7 +122,7 @@ describe("cycle, goal, and session repositories", () => {
     const [goal] = await goalRepository.listForCycle(cycle.id);
     const log = await sessionRepository.create({
       cycleGoalId: goal.id,
-      localDate: "2026-07-02",
+      startedAt: new Date(2026, 6, 2, 12).toISOString(),
       durationMinutes: 30,
     });
 

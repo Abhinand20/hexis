@@ -17,9 +17,9 @@ const strengthGoal: CycleGoal = {
 };
 
 const strengthLogs: SessionLog[] = [
-  { id: "log-1", cycleGoalId: "goal-strength", localDate: "2026-07-21", durationMinutes: 60, createdAt: "2026-07-21T00:00:00.000Z" },
-  { id: "log-2", cycleGoalId: "goal-strength", localDate: "2026-07-23", durationMinutes: 68, createdAt: "2026-07-23T00:00:00.000Z" },
-  { id: "log-3", cycleGoalId: "goal-strength", localDate: "2026-07-13", durationMinutes: 45, createdAt: "2026-07-13T00:00:00.000Z" },
+  { id: "log-1", cycleGoalId: "goal-strength", localDate: "2026-07-21", startedAt: "2026-07-21T00:00:00.000Z", durationMinutes: 60, createdAt: "2026-07-21T00:00:00.000Z" },
+  { id: "log-2", cycleGoalId: "goal-strength", localDate: "2026-07-23", startedAt: "2026-07-23T00:00:00.000Z", durationMinutes: 68, createdAt: "2026-07-23T00:00:00.000Z" },
+  { id: "log-3", cycleGoalId: "goal-strength", localDate: "2026-07-13", startedAt: "2026-07-13T00:00:00.000Z", durationMinutes: 45, createdAt: "2026-07-13T00:00:00.000Z" },
 ];
 
 describe("calculateGoalWeekProgress", () => {
@@ -82,15 +82,15 @@ describe("calendarDayIntensity", () => {
 
   it("returns 1 when fewer than half of goals were logged", () => {
     const logs: SessionLog[] = [
-      { id: "log-1", cycleGoalId: "goal-strength", localDate: "2026-07-23", durationMinutes: 60, createdAt: "2026-07-23T00:00:00.000Z" },
+      { id: "log-1", cycleGoalId: "goal-strength", localDate: "2026-07-23", startedAt: "2026-07-23T00:00:00.000Z", durationMinutes: 60, createdAt: "2026-07-23T00:00:00.000Z" },
     ];
     expect(calendarDayIntensity(goals, logs, "2026-07-23")).toBe(1);
   });
 
   it("returns 2 when at least half of goals were logged", () => {
     const logs: SessionLog[] = [
-      { id: "log-1", cycleGoalId: "goal-strength", localDate: "2026-07-23", durationMinutes: 60, createdAt: "2026-07-23T00:00:00.000Z" },
-      { id: "log-2", cycleGoalId: "goal-swim", localDate: "2026-07-23", durationMinutes: 45, createdAt: "2026-07-23T00:00:00.000Z" },
+      { id: "log-1", cycleGoalId: "goal-strength", localDate: "2026-07-23", startedAt: "2026-07-23T00:00:00.000Z", durationMinutes: 60, createdAt: "2026-07-23T00:00:00.000Z" },
+      { id: "log-2", cycleGoalId: "goal-swim", localDate: "2026-07-23", startedAt: "2026-07-23T00:00:00.000Z", durationMinutes: 45, createdAt: "2026-07-23T00:00:00.000Z" },
     ];
     expect(calendarDayIntensity(goals, logs, "2026-07-23")).toBe(2);
   });
@@ -112,6 +112,7 @@ describe("calculateGoalStreak", () => {
       id: `log-${cycleGoalId}-${localDate}`,
       cycleGoalId,
       localDate,
+      startedAt: `${localDate}T00:00:00.000Z`,
       durationMinutes: 20,
       createdAt: `${localDate}T00:00:00.000Z`,
     };

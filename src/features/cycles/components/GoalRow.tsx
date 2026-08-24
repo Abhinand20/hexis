@@ -6,7 +6,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, spacing } from "../../../design/tokens";
 import { LogSessionSheet } from "../../logging/components/LogSessionSheet";
 import { useLogSession } from "../../logging/hooks/useLogSession";
-import { todayLocalDate } from "../domain/date";
 import type { SessionLog } from "../domain/types";
 import { ProgressLine } from "./ProgressLine";
 
@@ -56,7 +55,6 @@ export function GoalRow({
     try {
       const log = await logSession({
         cycleGoalId: model.goalId,
-        localDate: todayLocalDate(),
         durationMinutes: model.expectedDurationMinutes,
       });
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});

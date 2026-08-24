@@ -129,6 +129,7 @@ function logOn(cycleGoalId: string, localDate: string, durationMinutes: number) 
     id: `log-${cycleGoalId}-${localDate}`,
     cycleGoalId,
     localDate,
+    startedAt: `${localDate}T00:00:00.000Z`,
     durationMinutes,
     createdAt: `${localDate}T00:00:00.000Z`,
   };

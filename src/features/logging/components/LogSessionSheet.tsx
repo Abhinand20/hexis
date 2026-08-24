@@ -3,7 +3,6 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing } from "../../../design/tokens";
-import { todayLocalDate } from "../../cycles/domain/date";
 import type { SessionLog } from "../../cycles/domain/types";
 import { useLogSession } from "../hooks/useLogSession";
 
@@ -70,7 +69,6 @@ export function LogSessionSheet({
     try {
       const log = await logSession({
         cycleGoalId: goal.id,
-        localDate: todayLocalDate(),
         durationMinutes: selectedDuration,
       });
       onLogged?.(log);

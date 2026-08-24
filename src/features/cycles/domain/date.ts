@@ -36,3 +36,17 @@ export function todayLocalDate(referenceDate: Date = new Date()): string {
   const day = String(referenceDate.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Converts an ISO instant to the local calendar date that contains it on this
+ * device. Session timestamps and their reporting date must always travel
+ * through this boundary together.
+ */
+export function localDateForInstant(instant: string): string {
+  const date = new Date(instant);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("startedAt must be a valid ISO timestamp");
+  }
+
+  return todayLocalDate(date);
+}
