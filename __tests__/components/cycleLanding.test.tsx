@@ -20,11 +20,26 @@ describe("CycleCalendar", () => {
   }));
 
   it("renders 30 cells and identifies the current day", async () => {
+    const onSelectDay = jest.fn();
     const screen = await render(
-      <CycleCalendar durationDays={30} todayIndex={11} days={dayData} />,
+      <CycleCalendar
+        durationDays={30}
+        todayIndex={11}
+        days={dayData}
+        maximumInteractiveDate="2026-07-12"
+        onSelectDay={onSelectDay}
+        selectedDate="2026-07-10"
+      />,
     );
-    expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(30);
+    expect(screen.getAllByTestId(/cycle-day-/)).toHaveLength(30);
+    expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(12);
     expect(screen.getByRole("button", { name: "Cycle day 12, today" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cycle day 10" })).toBeSelected();
+    expect(screen.queryByRole("button", { name: "Cycle day 13" })).toBeNull();
+
+    const user = userEvent.setup();
+    await user.press(screen.getByRole("button", { name: "Cycle day 10" }));
+    expect(onSelectDay).toHaveBeenCalledWith("2026-07-10");
   });
 });
 
@@ -411,8 +426,9 @@ describe("CycleLandingScreen", () => {
     expect(screen.getByText("Summer Focus")).toBeTruthy();
     expect(screen.getByText("Day 24 / 30")).toBeTruthy();
     expect(screen.getByText("6 days remaining")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(30);
+    expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(24);
     expect(screen.getByRole("button", { name: "Cycle day 24, today" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Cycle day 25" })).toBeNull();
 
     expect(screen.getByText("Strength")).toBeTruthy();
     expect(screen.getByText("No streak yet")).toBeTruthy();
@@ -431,6 +447,29 @@ describe("CycleLandingScreen", () => {
         name: "Log Read: 5 of 7 sessions this week.",
       }),
     ).toBeTruthy();
+  });
+
+  it("opens an elapsed calendar date in canonical Day history", async () => {
+    mockUseCycleLanding.mockReturnValue({
+      status: "ready",
+      header: {
+        cycleName: "Summer Focus",
+        dayLabel: "Day 24 / 30",
+        daysRemainingLabel: "6 days remaining",
+        overallProgressRatio: 5 / 24,
+      },
+      calendarDays: buildCalendarDays(),
+      goals: [],
+      refresh: jest.fn(),
+    } satisfies CycleLandingState);
+
+    const screen = await render(<CycleLandingScreen />);
+    const user = userEvent.setup();
+
+    await user.press(screen.getByRole("button", { name: "Cycle day 10" }));
+
+    expect(mockPush).toHaveBeenCalledWith("/history?filter=day&date=2026-07-10");
+    expect(screen.queryByRole("button", { name: "Cycle day 25" })).toBeNull();
   });
 
   it("shows an empty state with a way to start a cycle when there is no active cycle", async () => {

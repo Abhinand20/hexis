@@ -26,9 +26,20 @@ export type DayPracticeStatus = {
   expectedDurationMinutes: number | null;
 };
 
+export type DaySessionEntry = {
+  id: string;
+  cycleGoalId: string;
+  practiceName: string;
+  startedAt: string;
+  durationMinutes: number | null;
+};
+
 export type DaySummary = {
   localDate: string;
+  sessionCount: number;
+  minutesLogged: number;
   practices: DayPracticeStatus[];
+  sessions: DaySessionEntry[];
 };
 
 export type WeekPracticeProgress = {
@@ -202,7 +213,37 @@ export function buildDaySummary(
     };
   });
 
-  return { localDate, practices };
+  const goalsById = new Map(goals.map((goal) => [goal.id, goal]));
+  const sessions = logs
+    .filter((log) => log.localDate === localDate)
+    .map((log) => {
+      const goal = goalsById.get(log.cycleGoalId);
+      return {
+        id: log.id,
+        cycleGoalId: log.cycleGoalId,
+        practiceName: goal
+          ? goalConfigurationOn(goal, revisions, localDate).name
+          : "Unknown practice",
+        startedAt: log.startedAt,
+        durationMinutes: log.durationMinutes,
+      };
+    })
+    .sort(
+      (left, right) =>
+        Date.parse(left.startedAt) - Date.parse(right.startedAt) ||
+        left.id.localeCompare(right.id),
+    );
+
+  return {
+    localDate,
+    sessionCount: sessions.length,
+    minutesLogged: sessions.reduce(
+      (total, session) => total + (session.durationMinutes ?? 0),
+      0,
+    ),
+    practices,
+    sessions,
+  };
 }
 
 export function buildWeekSummary(

@@ -1,4 +1,4 @@
-import { render, renderHook, waitFor } from "@testing-library/react-native";
+import { act, render, renderHook, waitFor } from "@testing-library/react-native";
 import { userEvent } from "@testing-library/react-native";
 
 import HistoryScreen from "../../app/(tabs)/history";
@@ -47,6 +47,8 @@ const mockGetMostRecentCycle = jest.fn();
 const mockListForCycle = jest.fn();
 const mockListRevisions = jest.fn();
 const mockListSessionLogs = jest.fn();
+const mockSetParams = jest.fn();
+let mockSearchParams: { filter?: string; date?: string } = {};
 
 jest.mock("expo-router", () => {
   const React = require("react") as typeof import("react");
@@ -57,6 +59,8 @@ jest.mock("expo-router", () => {
         callback();
       }, [callback]);
     },
+    useLocalSearchParams: () => mockSearchParams,
+    useRouter: () => ({ setParams: mockSetParams }),
   };
 });
 
@@ -141,6 +145,8 @@ beforeEach(() => {
   mockListForCycle.mockReset();
   mockListRevisions.mockReset();
   mockListSessionLogs.mockReset();
+  mockSetParams.mockReset();
+  mockSearchParams = {};
   mockListRevisions.mockResolvedValue([]);
   mockGetMostRecentCycle.mockResolvedValue(null);
 });
@@ -280,6 +286,8 @@ function readyState(
 describe("HistoryScreen", () => {
   beforeEach(() => {
     mockUseCycleHistory.mockReset();
+    mockSetParams.mockReset();
+    mockSearchParams = {};
   });
 
   it("shows the empty copy without filter controls when no cycle exists", async () => {
@@ -319,10 +327,13 @@ describe("HistoryScreen", () => {
     expect(screen.getByRole("button", { name: "Day" })).toHaveAccessibilityState({
       selected: true,
     });
-    expect(screen.getByText("Strength")).toBeTruthy();
+    expect(mockSetParams).toHaveBeenCalledWith({ filter: "day", date: "2026-07-24" });
+    expect(screen.getAllByText("Strength")).toHaveLength(1);
     expect(screen.getByText("Not logged · 0 of 60 min")).toBeTruthy();
-    expect(screen.getByText("Read")).toBeTruthy();
+    expect(screen.getAllByText("Read")).toHaveLength(2);
     expect(screen.getByText("Logged · 20 of 20 min")).toBeTruthy();
+    expect(screen.getByText("Activity timeline")).toBeTruthy();
+    expect(screen.getAllByText("20m")).toHaveLength(2);
     expect(screen.getByLabelText("Previous day")).toHaveAccessibilityState({
       disabled: false,
     });
@@ -332,6 +343,50 @@ describe("HistoryScreen", () => {
 
     await user.press(screen.getByLabelText("Previous day"));
     expect(screen.getByText("Thu, Jul 23")).toBeTruthy();
+    expect(mockSetParams).toHaveBeenLastCalledWith({
+      filter: "day",
+      date: "2026-07-23",
+    });
+    expect(screen.getByLabelText("Next day")).toHaveAccessibilityState({
+      disabled: false,
+    });
+  });
+
+  it("initializes Day from a valid route date and bounds invalid dates to the cycle", async () => {
+    mockSearchParams = { filter: "day", date: "2026-07-21" };
+    mockUseCycleHistory.mockReturnValue(readyState());
+
+    const selected = await render(<HistoryScreen />);
+
+    expect(selected.getByRole("button", { name: "Day" })).toHaveAccessibilityState({
+      selected: true,
+    });
+    expect(selected.getByText("Tue, Jul 21")).toBeTruthy();
+    expect(selected.getByText("2")).toBeTruthy();
+
+    await act(async () => {
+      mockSearchParams = { filter: "day", date: "2026-07-22" };
+      selected.rerender(<HistoryScreen />);
+    });
+    await waitFor(() => {
+      expect(selected.getByText("Wed, Jul 22")).toBeTruthy();
+    });
+
+    mockSearchParams = { filter: "day", date: "2027-01-01" };
+    const bounded = await render(<HistoryScreen />);
+    expect(bounded.getByText("Fri, Jul 24")).toBeTruthy();
+  });
+
+  it("shows a useful empty timeline and bounds the first cycle day", async () => {
+    mockSearchParams = { filter: "day", date: "2026-07-01" };
+    mockUseCycleHistory.mockReturnValue(readyState());
+
+    const screen = await render(<HistoryScreen />);
+
+    expect(screen.getByText("No activities logged on this day.")).toBeTruthy();
+    expect(screen.getByLabelText("Previous day")).toHaveAccessibilityState({
+      disabled: true,
+    });
     expect(screen.getByLabelText("Next day")).toHaveAccessibilityState({
       disabled: false,
     });
@@ -375,12 +430,40 @@ describe("HistoryScreen", () => {
     expect(screen.getByRole("button", { name: "Cycle" })).toHaveAccessibilityState({
       selected: true,
     });
-    expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(30);
+    expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(24);
+    expect(screen.queryByRole("button", { name: "Cycle day 25" })).toBeNull();
     expect(screen.getByText("Summer Focus")).toBeTruthy();
     expect(screen.getByText(/30 active days/i)).toBeTruthy();
     expect(screen.getByText("Weekly trend")).toBeTruthy();
     expect(screen.getByText("Practice consistency")).toBeTruthy();
     expect(screen.getByLabelText(/Strength: .* of cycle targets reached/)).toBeTruthy();
+
+    await user.press(screen.getByRole("button", { name: "Cycle day 10" }));
+    expect(mockSetParams).toHaveBeenLastCalledWith({
+      filter: "day",
+      date: "2026-07-10",
+    });
+    expect(screen.getByText("Fri, Jul 10")).toBeTruthy();
+  });
+
+  it("makes every date in a completed cycle selectable", async () => {
+    mockUseCycleHistory.mockReturnValue(readyState({
+      cycle: createCycle({
+        id: "cycle-1",
+        name: "Summer Focus",
+        startDate: "2026-07-01",
+        durationDays: 30,
+        endDate: "2026-07-30",
+        status: "completed",
+      }),
+    }));
+    const user = userEvent.setup();
+
+    const screen = await render(<HistoryScreen />);
+    await user.press(screen.getByRole("button", { name: "Cycle" }));
+
+    expect(screen.getAllByRole("button", { name: /cycle day/i })).toHaveLength(30);
+    expect(screen.getByRole("button", { name: "Cycle day 30" })).toBeTruthy();
   });
 
   it("shows a loading state and an error message on failure", async () => {

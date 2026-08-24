@@ -80,6 +80,13 @@ export default function CycleLandingScreen() {
     });
   }, [isUndoPending, quickLogConfirmation, removeLog]);
 
+  const navigateToHistoryDay = useCallback(
+    (localDate: string) => {
+      router.push(`/history?filter=day&date=${localDate}`);
+    },
+    [router],
+  );
+
   if (state.status === "loading") {
     return null;
   }
@@ -140,6 +147,9 @@ export default function CycleLandingScreen() {
     );
   }
 
+  const maximumInteractiveDate =
+    state.calendarDays.find((day) => day.isToday)?.localDate ?? todayLocalDate();
+
   return (
     <View style={styles.screen}>
       <FlatList
@@ -173,6 +183,9 @@ export default function CycleLandingScreen() {
               durationDays={state.calendarDays.length}
               todayIndex={state.calendarDays.findIndex((day) => day.isToday)}
               days={state.calendarDays}
+              maximumInteractiveDate={maximumInteractiveDate}
+              onSelectDay={navigateToHistoryDay}
+              selectedDate={maximumInteractiveDate}
             />
             <Text style={styles.sectionLabel}>Practices</Text>
           </View>

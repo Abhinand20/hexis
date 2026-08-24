@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { colors, spacing } from "../../../design/tokens";
 
@@ -11,6 +11,9 @@ export type CycleCalendarProps = {
   durationDays: number;
   todayIndex: number;
   days: CycleCalendarDayInput[];
+  maximumInteractiveDate: string;
+  onSelectDay: (localDate: string) => void;
+  selectedDate?: string;
 };
 
 const MONTH_NAMES = [
@@ -33,30 +36,57 @@ function intensityDescription(intensity: 0 | 1 | 2): string {
   return "Most sessions logged";
 }
 
-export function CycleCalendar({ durationDays, todayIndex, days }: CycleCalendarProps) {
+export function CycleCalendar({
+  durationDays,
+  todayIndex,
+  days,
+  maximumInteractiveDate,
+  onSelectDay,
+  selectedDate,
+}: CycleCalendarProps) {
   return (
     <View style={styles.grid}>
       {Array.from({ length: durationDays }).map((_, index) => {
         const day = days[index];
         const dayNumber = index + 1;
         const isToday = index === todayIndex;
+        const isSelected = day?.localDate === selectedDate;
         const label = isToday ? `Cycle day ${dayNumber}, today` : `Cycle day ${dayNumber}`;
         const hint = day
           ? `${formatDisplayDate(day.localDate)}. ${intensityDescription(day.intensity)}.`
           : undefined;
 
+        if (!day || day.localDate > maximumInteractiveDate) {
+          return (
+            <View
+              key={day?.localDate ?? `cycle-day-${dayNumber}`}
+              testID={`cycle-day-${dayNumber}`}
+              style={[
+                styles.cell,
+                day?.intensity === 1 ? styles.cellLow : null,
+                day?.intensity === 2 ? styles.cellHigh : null,
+                isToday ? styles.cellToday : null,
+                styles.cellUnavailable,
+              ]}
+            />
+          );
+        }
+
         return (
-          <View
+          <Pressable
             key={day?.localDate ?? `cycle-day-${dayNumber}`}
-            accessible
+            testID={`cycle-day-${dayNumber}`}
             accessibilityRole="button"
             accessibilityLabel={label}
             accessibilityHint={hint}
+            accessibilityState={{ selected: isSelected }}
+            onPress={() => onSelectDay(day.localDate)}
             style={[
               styles.cell,
               day?.intensity === 1 ? styles.cellLow : null,
               day?.intensity === 2 ? styles.cellHigh : null,
               isToday ? styles.cellToday : null,
+              isSelected ? styles.cellSelected : null,
             ]}
           />
         );
@@ -76,6 +106,7 @@ const styles = StyleSheet.create({
   cell: {
     backgroundColor: colors.hairline,
     borderRadius: 4,
+    borderCurve: "continuous",
     height: CELL_SIZE,
     width: CELL_SIZE,
   },
@@ -88,5 +119,12 @@ const styles = StyleSheet.create({
   cellToday: {
     borderColor: colors.ink,
     borderWidth: 2,
+  },
+  cellSelected: {
+    borderColor: colors.verdigris,
+    borderWidth: 3,
+  },
+  cellUnavailable: {
+    opacity: 0.45,
   },
 });

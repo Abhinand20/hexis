@@ -209,10 +209,17 @@ describe("buildDaySummary", () => {
       log("goal-read", "2026-07-22", 20),
     ];
 
-    expect(
-      buildDaySummary([writeGoal, runGoal, readGoal], revisions, logs, "2026-07-22"),
-    ).toEqual({
+    const summary = buildDaySummary(
+      [writeGoal, runGoal, readGoal],
+      revisions,
+      logs,
+      "2026-07-22",
+    );
+
+    expect(summary).toMatchObject({
       localDate: "2026-07-22",
+      sessionCount: 3,
+      minutesLogged: 50,
       practices: [
         {
           goalId: "goal-write",
@@ -237,6 +244,59 @@ describe("buildDaySummary", () => {
         },
       ],
     });
+  });
+
+  it("joins effective practice names and orders the day timeline by actual start time", () => {
+    const revisions: GoalRevision[] = [
+      {
+        id: "rev-1",
+        cycleGoalId: "goal-write",
+        effectiveDate: "2026-07-15",
+        name: "Write mornings",
+        cadence: "daily",
+        weeklyTargetCount: 5,
+        expectedDurationMinutes: 45,
+      },
+    ];
+    const logs: SessionLog[] = [
+      {
+        ...log("goal-write", "2026-07-22", 30),
+        id: "log-late",
+        startedAt: "2026-07-22T09:00:00.000-08:00",
+      },
+      {
+        ...log("goal-run", "2026-07-22", null),
+        id: "log-early",
+        startedAt: "2026-07-22T16:00:00.000Z",
+      },
+      log("goal-read", "2026-07-21", 20),
+    ];
+
+    const summary = buildDaySummary(
+      [writeGoal, runGoal, readGoal],
+      revisions,
+      logs,
+      "2026-07-22",
+    );
+
+    expect(summary.sessionCount).toBe(2);
+    expect(summary.minutesLogged).toBe(30);
+    expect(summary.sessions).toEqual([
+      {
+        id: "log-early",
+        cycleGoalId: "goal-run",
+        practiceName: "Run",
+        startedAt: "2026-07-22T16:00:00.000Z",
+        durationMinutes: null,
+      },
+      {
+        id: "log-late",
+        cycleGoalId: "goal-write",
+        practiceName: "Write mornings",
+        startedAt: "2026-07-22T09:00:00.000-08:00",
+        durationMinutes: 30,
+      },
+    ]);
   });
 });
 

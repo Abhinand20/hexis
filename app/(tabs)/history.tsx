@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Pressable,
@@ -55,6 +55,19 @@ function parseLocalDate(localDate: string): Date {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+function parameterValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function isValidLocalDate(value: string | undefined): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsed = parseLocalDate(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function formatDisplayDate(localDate: string): string {
   const [, month, day] = localDate.split("-").map(Number);
   return `${MONTH_NAMES[month - 1]} ${day}`;
@@ -74,6 +87,13 @@ function formatMinutes(minutes: number): string {
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }
 
+function formatSessionTime(startedAt: string): string {
+  return new Date(startedAt).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function percentage(ratio: number): string {
   return `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
 }
@@ -90,6 +110,13 @@ function cycleDayNumber(cycle: Cycle, localDate: string): number {
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams<{
+    filter?: string | string[];
+    date?: string | string[];
+  }>();
+  const routeFilter = parameterValue(params.filter);
+  const routeDate = parameterValue(params.date);
   const [focusVersion, setFocusVersion] = useState(0);
   useFocusEffect(
     useCallback(() => {
@@ -97,9 +124,36 @@ export default function HistoryScreen() {
     }, []),
   );
   const state = useCycleHistory(focusVersion);
-  const [filter, setFilter] = useState<HistoryFilter>("week");
-  const [dayPointer, setDayPointer] = useState<string | null>(null);
+  const [filter, setFilter] = useState<HistoryFilter>(
+    routeFilter === "day" || routeFilter === "week" || routeFilter === "cycle"
+      ? routeFilter
+      : "week",
+  );
+  const [dayPointer, setDayPointer] = useState<string | null>(
+    isValidLocalDate(routeDate) ? routeDate : null,
+  );
   const [weekPointer, setWeekPointer] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (routeFilter === "day") {
+      setFilter("day");
+      setDayPointer(isValidLocalDate(routeDate) ? routeDate : null);
+      return;
+    }
+
+    if (routeFilter === "week" || routeFilter === "cycle") {
+      setFilter(routeFilter);
+    }
+  }, [routeDate, routeFilter]);
+
+  const navigateToDay = useCallback(
+    (localDate: string) => {
+      setFilter("day");
+      setDayPointer(localDate);
+      router.setParams({ filter: "day", date: localDate });
+    },
+    [router],
+  );
 
   if (state.status === "loading") {
     return (
@@ -145,8 +199,14 @@ export default function HistoryScreen() {
 
   const { cycle, goals, revisions, logs } = state;
   const today = todayLocalDate();
-  const upperBoundDate = today < cycle.endDate ? today : cycle.endDate;
-  const selectedDay = dayPointer ?? upperBoundDate;
+  const upperBoundDate = cycle.status === "active" && today < cycle.endDate
+    ? today
+    : cycle.endDate;
+  const selectedDay = dayPointer !== null &&
+    dayPointer >= cycle.startDate &&
+    dayPointer <= upperBoundDate
+    ? dayPointer
+    : upperBoundDate;
   const minWeekStart = weekStart(cycle.startDate);
   const maxWeekStart = weekStart(upperBoundDate);
   const currentWeek = weekPointer ?? maxWeekStart;
@@ -179,7 +239,13 @@ export default function HistoryScreen() {
               key={option.key}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              onPress={() => setFilter(option.key)}
+              onPress={() => {
+                if (option.key === "day") {
+                  navigateToDay(selectedDay);
+                  return;
+                }
+                setFilter(option.key);
+              }}
               style={[styles.filterButton, selected ? styles.filterButtonSelected : null]}
             >
               <Text
@@ -204,8 +270,8 @@ export default function HistoryScreen() {
           selectedDate={selectedDay}
           minDate={cycle.startDate}
           maxDate={upperBoundDate}
-          onPrevious={() => setDayPointer(addLocalDays(selectedDay, -1))}
-          onNext={() => setDayPointer(addLocalDays(selectedDay, 1))}
+          onPrevious={() => navigateToDay(addLocalDays(selectedDay, -1))}
+          onNext={() => navigateToDay(addLocalDays(selectedDay, 1))}
         />
       ) : null}
 
@@ -231,6 +297,9 @@ export default function HistoryScreen() {
           revisions={revisions}
           logs={logs}
           today={today}
+          maximumInteractiveDate={upperBoundDate}
+          selectedDate={selectedDay}
+          onSelectDay={navigateToDay}
         />
       ) : null}
     </ScrollView>
@@ -259,11 +328,6 @@ function DayFilterView({
   onNext: () => void;
 }) {
   const summary = buildDaySummary(goals, revisions, logs, selectedDate);
-  const sessionCount = logs.filter((log) => log.localDate === selectedDate).length;
-  const minutesLogged = summary.practices.reduce(
-    (total, practice) => total + (practice.minutesLogged ?? 0),
-    0,
-  );
   const prevDisabled = selectedDate <= minDate;
   const nextDisabled = selectedDate >= maxDate;
 
@@ -281,9 +345,45 @@ function DayFilterView({
       />
 
       <View style={styles.metricRow}>
-        <MetricCard value={String(sessionCount)} label="sessions" />
-        <MetricCard value={formatMinutes(minutesLogged)} label="logged" />
+        <MetricCard value={String(summary.sessionCount)} label="sessions" />
+        <MetricCard value={formatMinutes(summary.minutesLogged)} label="logged" />
       </View>
+
+      <SectionHeading
+        label="Activity timeline"
+        detail={`${summary.sessionCount} ${summary.sessionCount === 1 ? "session" : "sessions"}`}
+      />
+      {summary.sessions.length > 0 ? (
+        <View style={styles.paperCard}>
+          {summary.sessions.map((session, index) => {
+            const time = formatSessionTime(session.startedAt);
+            const duration = session.durationMinutes === null
+              ? "Duration not recorded"
+              : formatMinutes(session.durationMinutes);
+            return (
+              <View
+                key={session.id}
+                accessible
+                accessibilityLabel={`${session.practiceName}, ${time}, ${duration}`}
+                style={[styles.timelineRow, index > 0 ? styles.rowDivider : null]}
+              >
+                <View style={styles.timelineTimeColumn}>
+                  <Text style={styles.timelineTime}>{time}</Text>
+                  <View style={styles.timelineDot} />
+                </View>
+                <View style={styles.practiceCopy}>
+                  <Text style={styles.practiceName}>{session.practiceName}</Text>
+                  <Text style={styles.practiceMeta}>{duration}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ) : (
+        <View style={styles.quietState}>
+          <Text style={styles.quietStateText}>No activities logged on this day.</Text>
+        </View>
+      )}
 
       <SectionHeading label="Practice record" detail={`${summary.practices.length} practices`} />
       <View style={styles.paperCard}>
@@ -483,12 +583,18 @@ function CycleFilterView({
   revisions,
   logs,
   today,
+  maximumInteractiveDate,
+  selectedDate,
+  onSelectDay,
 }: {
   cycle: Cycle;
   goals: CycleGoal[];
   revisions: GoalRevision[];
   logs: SessionLog[];
   today: string;
+  maximumInteractiveDate: string;
+  selectedDate: string;
+  onSelectDay: (localDate: string) => void;
 }) {
   const insights = buildHistoryInsights(cycle, goals, revisions, logs, today);
   const days = Array.from({ length: cycle.durationDays }, (_, index) => {
@@ -552,6 +658,9 @@ function CycleFilterView({
           durationDays={cycle.durationDays}
           todayIndex={todayIndex}
           days={days}
+          maximumInteractiveDate={maximumInteractiveDate}
+          onSelectDay={onSelectDay}
+          selectedDate={selectedDate}
         />
         <View style={styles.calendarLegend}>
           <Text style={styles.calendarLegendText}>Quiet</Text>
@@ -908,6 +1017,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
     paddingVertical: spacing.xs,
+  },
+  timelineRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 48,
+    paddingVertical: spacing.xs,
+  },
+  timelineTimeColumn: {
+    alignItems: "center",
+    gap: spacing.xs,
+    width: 72,
+  },
+  timelineTime: {
+    color: colors.mutedInk,
+    fontSize: 13,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+  },
+  timelineDot: {
+    backgroundColor: colors.verdigris,
+    borderCurve: "continuous",
+    borderRadius: 4,
+    height: 6,
+    width: 6,
   },
   rowDivider: {
     borderTopColor: colors.hairline,
