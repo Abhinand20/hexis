@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1024"
+  height="1024"
+  viewBox="0 0 1024 1024"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">Hexis Continuous Trace H</title>
+  <desc id="description">
+    A continuous charcoal H-shaped trace punctuated by three cinnabar activity marks.
+  </desc>
+
+  <rect width="1024" height="1024" fill="#F4F0E8" />
+
+  <g
+    fill="none"
+    stroke="#1C1C1A"
+    stroke-width="64"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M256 512V328C256 268 305 220 365 220S474 268 474 328V400C474 462 490 512 548 512" />
+    <path d="M256 512V664C256 724 305 772 365 772S474 724 474 664V624" />
+    <path d="M640 512V664C640 724 689 772 749 772S858 724 858 664V512" />
+    <path d="M548 512H640V328C640 268 689 220 749 220S858 268 858 328V512" />
+  </g>
+
+  <g fill="#D7654F" stroke="#F4F0E8" stroke-width="10">
+    <circle cx="256" cy="512" r="42" />
+    <circle cx="548" cy="512" r="42" />
+    <circle cx="858" cy="512" r="42" />
+  </g>
+</svg>
