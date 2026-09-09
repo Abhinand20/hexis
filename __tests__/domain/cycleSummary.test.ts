@@ -3,6 +3,8 @@ import {
   buildDaySummary,
   buildWeekSummary,
 } from "../../src/features/cycles/domain/cycleSummary";
+import { buildCycleArchiveItems } from "../../src/features/cycles/domain/cycleArchive";
+import { buildCycleWrapUp } from "../../src/features/cycles/domain/cycleWrapUp";
 import type { CycleGoal, GoalRevision, SessionLog } from "../../src/features/cycles/domain/types";
 import { createCycle } from "../../src/test/factories";
 
@@ -169,13 +171,13 @@ describe("buildCycleSummary", () => {
     expect(summary.strongestWeekLabel).toBe("Jul 6 – Jul 12");
   });
 
-  it("returns null strongest week and most consistent practice with no sessions", () => {
+  it("returns null strongest week and most logged practice with no sessions", () => {
     const summary = buildCycleSummary(cycle, [writeGoal, runGoal], [], []);
     expect(summary.strongestWeekLabel).toBeNull();
-    expect(summary.mostConsistentPracticeName).toBeNull();
+    expect(summary.mostLoggedPracticeName).toBeNull();
   });
 
-  it("names the most consistent practice by completedCount, preferring earlier goals on ties", () => {
+  it("names the most logged practice by session count, then goal ID on a tie", () => {
     const logs: SessionLog[] = [
       log("goal-write", "2026-07-01", 30),
       log("goal-write", "2026-07-02", 30),
@@ -190,8 +192,54 @@ describe("buildCycleSummary", () => {
       [],
       logs,
     );
-    // Write and Run both have 2; Write comes first in goals order
-    expect(summary.mostConsistentPracticeName).toBe("Write");
+    // Write and Run both have 2; goal-run sorts before goal-write
+    expect(summary.mostLoggedPracticeName).toBe("Run");
+  });
+
+  it("ignores sessions moved outside the cycle range when naming the strongest week", () => {
+    const logs: SessionLog[] = [
+      log("goal-write", "2026-07-07", 30),
+      log("goal-write", "2026-07-08", 30),
+      log("goal-write", "2026-08-01", 90),
+      log("goal-write", "2026-08-02", 90),
+      log("goal-write", "2026-08-03", 90),
+    ];
+
+    const summary = buildCycleSummary(cycle, [writeGoal], [], logs);
+    expect(summary.strongestWeekLabel).toBe("Jul 6 – Jul 12");
+    expect(summary.loggedDayCount).toBe(2);
+  });
+
+  it("agrees with wrap-up and archive totals for the same finished cycle", () => {
+    const logs: SessionLog[] = [
+      log("goal-write", "2026-07-01", 30),
+      log("goal-write", "2026-07-02", null),
+      log("goal-run", "2026-07-02", 45),
+      log("goal-write", "2026-07-15", 20),
+      log("goal-write", "2026-08-01", 90),
+    ];
+    const goals = [writeGoal, runGoal];
+    const wrapUp = buildCycleWrapUp(cycle, goals, [], logs);
+    const summary = buildCycleSummary(cycle, goals, [], logs);
+    const [archive] = buildCycleArchiveItems({
+      cycles: [cycle],
+      goals,
+      revisions: [],
+      effectiveLogs: logs,
+      today: "2026-08-15",
+    });
+
+    expect(wrapUp.cycleDays).toBe(summary.activeDayCount);
+    expect(wrapUp.activeDays).toBe(summary.loggedDayCount);
+    expect(wrapUp.sessions).toBe(archive.sessionCount);
+    expect(wrapUp.recordedMinutes).toBe(archive.minutesLogged);
+    expect(wrapUp.recordedMinutes).toBe(
+      summary.practiceTotals.reduce(
+        (total, practice) => total + practice.minutesLogged,
+        0,
+      ),
+    );
+    expect(wrapUp.activityDayPercentage).toBe(archive.activeDayRatio * 100);
   });
 });
 

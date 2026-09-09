@@ -45,9 +45,9 @@ export function CycleSummaryCard({ cycleName, summary }: CycleSummaryCardProps) 
       ) : (
         <Text style={styles.fallback}>No sessions logged</Text>
       )}
-      {summary.mostConsistentPracticeName ? (
+      {summary.mostLoggedPracticeName ? (
         <Text style={styles.highlight}>
-          Most consistent: {summary.mostConsistentPracticeName}
+          Most logged: {summary.mostLoggedPracticeName}
         </Text>
       ) : null}
     </View>
