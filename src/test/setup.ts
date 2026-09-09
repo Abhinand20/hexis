@@ -8,3 +8,8 @@ jest.mock("react-native-safe-area-context", () => {
   // CJS interop.
   return mock.default ?? mock;
 });
+
+jest.mock("expo-sharing", () => ({
+  shareAsync: jest.fn(() => Promise.resolve()),
+  isAvailableAsync: jest.fn(() => Promise.resolve(true)),
+}));

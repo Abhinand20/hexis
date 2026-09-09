@@ -8,6 +8,7 @@
     "start:go": "expo start --go",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "test": "jest --runInBand",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,12 +17,14 @@
     "@react-native-community/datetimepicker": "9.1.0",
     "expo": "~57.0.15",
     "expo-constants": "~57.0.13",
+    "expo-file-system": "~57.0.6",
     "expo-font": "~57.0.1",
     "expo-glass-effect": "~57.0.1",
     "expo-haptics": "~57.0.1",
     "expo-linking": "~57.0.7",
     "expo-notifications": "~57.0.13",
     "expo-router": "~57.0.15",
+    "expo-sharing": "~57.0.18",
     "expo-sqlite": "~57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",

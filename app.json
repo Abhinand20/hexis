@@ -21,7 +21,8 @@
       "expo-font",
       "@react-native-community/datetimepicker",
       "./plugins/withLocalNotificationsOnly",
-      "./plugins/withUserScriptSandboxingDisabled"
+      "./plugins/withUserScriptSandboxingDisabled",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true
