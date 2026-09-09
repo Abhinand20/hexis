@@ -336,6 +336,7 @@ describe("useCycleLanding", () => {
       throw new Error("expected completed state");
     }
 
+    expect(state.cycleId).toBe("cycle-1");
     expect(state.cycleName).toBe("Summer Focus");
     expect(state.summary.activeDayCount).toBe(30);
     expect(state.summary.loggedDayCount).toBe(2);
@@ -353,7 +354,7 @@ describe("useCycleLanding", () => {
         minutesLogged: 40,
       },
     ]);
-    expect(state.summary.mostConsistentPracticeName).toBe("Read");
+    expect(state.summary.mostLoggedPracticeName).toBe("Read");
     expect(typeof state.refresh).toBe("function");
   });
 
@@ -700,10 +701,11 @@ describe("CycleLandingScreen", () => {
         },
       ],
       strongestWeekLabel: "Jul 20 – Jul 26",
-      mostConsistentPracticeName: "Read",
+      mostLoggedPracticeName: "Read",
     };
     mockUseCycleLanding.mockReturnValue({
       status: "completed",
+      cycleId: "cycle-1",
       cycleName: "Summer Focus",
       summary,
       refresh: jest.fn(),
@@ -718,7 +720,10 @@ describe("CycleLandingScreen", () => {
     expect(screen.getByText("Strength")).toBeTruthy();
     expect(screen.getByText("Read")).toBeTruthy();
     expect(screen.getByText(/Jul 20 – Jul 26/)).toBeTruthy();
-    expect(screen.getByText(/Most consistent/i)).toBeTruthy();
+    expect(screen.getByText(/Most logged/i)).toBeTruthy();
+
+    await user.press(screen.getByRole("button", { name: "View wrap-up" }));
+    expect(mockPush).toHaveBeenCalledWith("/cycles/cycle-1/summary");
 
     await user.press(screen.getByRole("button", { name: "Start a new cycle" }));
     expect(mockPush).toHaveBeenCalledWith("/setup/duration");

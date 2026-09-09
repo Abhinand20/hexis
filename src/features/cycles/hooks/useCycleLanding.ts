@@ -34,6 +34,7 @@ export type CycleLandingState =
   | { status: "error"; message: string }
   | {
       status: "completed";
+      cycleId: string;
       cycleName: string;
       summary: CycleAchievementSummary;
       refresh: () => Promise<void>;
@@ -95,6 +96,7 @@ export function useCycleLanding(
 
         setState({
           status: "completed",
+          cycleId: recent.id,
           cycleName: recent.name,
           summary,
           refresh: load,

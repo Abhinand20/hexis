@@ -104,6 +104,13 @@ export default function CycleLandingScreen() {
     [router],
   );
 
+  const openCompletedWrapUp = useCallback(() => {
+    if (state.status !== "completed") {
+      return;
+    }
+    router.push(`/cycles/${encodeURIComponent(state.cycleId)}/summary`);
+  }, [router, state]);
+
   if (state.status === "loading") {
     return (
       <View
@@ -161,6 +168,13 @@ export default function CycleLandingScreen() {
         ]}
       >
         <CycleSummaryCard cycleName={state.cycleName} summary={state.summary} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={openCompletedWrapUp}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>View wrap-up</Text>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push("/setup/duration")}
@@ -383,6 +397,19 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.inkOnDark,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  secondaryButton: {
+    alignSelf: "center",
+    borderColor: colors.verdigris,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  secondaryButtonText: {
+    color: colors.verdigris,
     fontSize: 16,
     fontWeight: "600",
   },
