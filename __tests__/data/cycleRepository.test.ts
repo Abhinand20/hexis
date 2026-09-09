@@ -22,10 +22,15 @@ describe("cycle, goal, and session repositories", () => {
   let sessionRepository: SessionRepository;
 
   beforeEach(async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 23, 12));
     db = await openDatabase(":memory:");
     cycleRepository = createCycleRepository(db);
     goalRepository = createGoalRepository(db);
     sessionRepository = createSessionRepository(db);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it("starts every new-cycle practice on the cycle start date", async () => {
@@ -53,7 +58,6 @@ describe("cycle, goal, and session repositories", () => {
       await db.getFirstAsync("SELECT COUNT(*) AS count FROM cycles WHERE status = 'active'"),
     ).toEqual({ count: 1 });
   });
-
   it("rejects a revision effectiveDate before the cycle startDate", async () => {
     const cycle = await cycleRepository.createCycle(createCycleInput());
     const [goal] = await goalRepository.listForCycle(cycle.id);

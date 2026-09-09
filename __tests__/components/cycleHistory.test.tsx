@@ -705,4 +705,17 @@ describe("HistoryScreen", () => {
     const errored = await render(<HistoryScreen />);
     expect(errored.getByText("Something broke")).toBeTruthy();
   });
+
+  it("keeps hook order stable when loading finishes", async () => {
+    mockUseCycleHistory.mockReturnValue({ status: "loading" } satisfies CycleHistoryState);
+    const screen = await render(<HistoryScreen />);
+
+    mockUseCycleHistory.mockReturnValue(readyState());
+    await act(async () => screen.rerender(<HistoryScreen />));
+
+    expect(screen.getByText("History")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Week" })).toHaveAccessibilityState({
+      selected: true,
+    });
+  });
 });

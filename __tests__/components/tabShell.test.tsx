@@ -127,8 +127,23 @@ jest.mock("@react-native-community/datetimepicker", () => {
 
   return {
     __esModule: true,
-    default: function MockDateTimePicker() {
-      return <Text>Time picker</Text>;
+    default: function MockDateTimePicker({
+      onValueChange,
+    }: {
+      onValueChange?: (_event: unknown, date: Date) => void;
+    }) {
+      return (
+        <Text
+          onPress={() =>
+            onValueChange?.(
+              { nativeEvent: { timestamp: 0, utcOffset: 0 } },
+              new Date(2000, 0, 1, 7, 45),
+            )
+          }
+        >
+          Time picker
+        </Text>
+      );
     },
   };
 });
@@ -297,6 +312,40 @@ describe("SettingsScreen", () => {
         notificationIdentifier: null,
       });
       expect(mockSaveReminder).toHaveBeenCalledWith(expect.anything(), enabledResult);
+    });
+  });
+
+  it("saves reminder time changes through the current picker callback", async () => {
+    mockUseActiveCycle.mockReturnValue({
+      cycle: null,
+      isLoading: false,
+    });
+    mockLoadReminder.mockResolvedValue({
+      enabled: true,
+      hour: 9,
+      minute: 30,
+      notificationIdentifier: "notif-1",
+    });
+    const changedResult = {
+      enabled: true,
+      hour: 7,
+      minute: 45,
+      notificationIdentifier: "notif-2",
+    };
+    mockSetDailyReminder.mockResolvedValue(changedResult);
+    const user = userEvent.setup();
+    const screen = await render(<SettingsScreen />);
+
+    await user.press(await screen.findByText("Time picker"));
+
+    await waitFor(() => {
+      expect(mockSetDailyReminder).toHaveBeenCalledWith({
+        enabled: true,
+        hour: 7,
+        minute: 45,
+        notificationIdentifier: "notif-1",
+      });
+      expect(mockSaveReminder).toHaveBeenCalledWith(expect.anything(), changedResult);
     });
   });
 

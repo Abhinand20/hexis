@@ -223,6 +223,29 @@ export default function HistoryScreen() {
     activityMutation.clearError();
   }, [activityMutation.clearError]);
 
+  const openArchive = useCallback(() => {
+    setArchiveVisible(true);
+  }, []);
+
+  const dismissArchive = useCallback(() => {
+    setArchiveVisible(false);
+  }, []);
+
+  const selectArchiveCycle = useCallback((cycleId: string) => {
+    setArchiveVisible(false);
+    router.setParams({ cycleId });
+  }, [router]);
+
+  const repeatSelectedCycle = useCallback(() => {
+    if (!resolvedCycleId) {
+      return;
+    }
+
+    router.push(
+      `/setup/duration?repeatCycleId=${encodeURIComponent(resolvedCycleId)}`,
+    );
+  }, [resolvedCycleId, router]);
+
   if (state.status === "loading") {
     return (
       <View style={[styles.screen, styles.centered]}>
@@ -288,23 +311,6 @@ export default function HistoryScreen() {
       ? "Ended early"
       : "Completed cycle";
   const selectedArchiveItem = archiveItems.find((item) => item.id === cycle.id);
-
-  const openArchive = useCallback(() => {
-    setArchiveVisible(true);
-  }, []);
-
-  const dismissArchive = useCallback(() => {
-    setArchiveVisible(false);
-  }, []);
-
-  const selectArchiveCycle = useCallback((cycleId: string) => {
-    setArchiveVisible(false);
-    router.setParams({ cycleId });
-  }, [router]);
-
-  const repeatSelectedCycle = useCallback(() => {
-    router.push(`/setup/duration?repeatCycleId=${encodeURIComponent(cycle.id)}`);
-  }, [cycle.id, router]);
 
   const openAddEditor = (
     localDate: string,

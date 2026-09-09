@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  type DateTimePickerChangeEvent,
+} from "@react-native-community/datetimepicker";
 import * as Linking from "expo-linking";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
@@ -107,10 +109,10 @@ export default function SettingsScreen() {
   }
 
   async function handleReminderTimeChange(
-    _event: unknown,
-    selectedDate?: Date,
+    _event: DateTimePickerChangeEvent,
+    selectedDate: Date,
   ) {
-    if (!db || !selectedDate) {
+    if (!db) {
       return;
     }
 
@@ -235,7 +237,7 @@ export default function SettingsScreen() {
           <DateTimePicker
             mode="time"
             value={new Date(2000, 0, 1, reminder.hour, reminder.minute)}
-            onChange={handleReminderTimeChange}
+            onValueChange={handleReminderTimeChange}
           />
         </View>
       ) : null}
