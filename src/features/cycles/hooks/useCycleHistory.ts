@@ -41,7 +41,7 @@ export function useCycleHistory(
   refreshVersion = 0,
   selectedCycleId?: string,
 ): CycleHistoryState {
-  const { db } = useDatabase();
+  const { db, dataVersion } = useDatabase();
   const [state, setState] = useState<CycleHistoryState>({ status: "loading" });
 
   useEffect(() => {
@@ -143,7 +143,7 @@ export function useCycleHistory(
     return () => {
       cancelled = true;
     };
-  }, [db, refreshVersion, selectedCycleId]);
+  }, [db, refreshVersion, selectedCycleId, dataVersion]);
 
   return state;
 }

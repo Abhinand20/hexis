@@ -17,6 +17,8 @@ const MIGRATIONS: string[][] = [
   SCHEMA_V6,
 ];
 
+export const SUPPORTED_SCHEMA_VERSION = MIGRATIONS.length;
+
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>(
     "PRAGMA user_version",
