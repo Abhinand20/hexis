@@ -1,3 +1,5 @@
+> MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
+
 # Hexis completion objective and delivery plan
 
 **Status:** Approved direction; implementation and acceptance pending.  

@@ -1,4 +1,12 @@
+> MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
+
 # Hexis Milestones
+
+**Completion program:** [Completion objective and delivery plan](completion-objective-and-delivery-plan.md)
+defines the authoritative M11–M16 scope, task breakdown, contracts, and acceptance
+gates. It uses a free Apple ID with owner-accepted seven-day renewal; no paid
+developer membership is required. The M0–M10 table below remains the original
+implementation record, including its pending physical-device checks.
 
 This is the at-a-glance roadmap for Hexis. Each milestone maps to a phase in
 `docs/implementation-plan.md`, which holds the detailed task/step breakdown.
@@ -21,6 +29,10 @@ dependency gates, and merge waves are defined in `docs/parallel-delivery-plan.md
 | M10 | Cross-cycle archive & repeat-cycle flow | Phase 9 — Tasks 26–29 | History can browse every active, completed, and early-ended cycle; archive summaries make cycles distinguishable; selecting a cycle preserves Day/Week/Cycle navigation bounds; **Repeat cycle** pre-fills setup from the source cycle's final active practices without copying logs or identifiers | 🟨 Implemented — physical-device archive/repeat pass pending |
 
 ## Working agreement
+
+For M11–M16, use the ownership, dependency, and evidence rules in the
+[completion plan](completion-objective-and-delivery-plan.md#7-agent-execution-and-integration-rules).
+The following agreement describes the earlier M0–M10 delivery process.
 
 - A task begins once its dependency gate in `docs/parallel-delivery-plan.md` is merged. Independent implementation and UI scaffolding may run ahead in isolated worktrees.
 - Milestone completion still requires its integration, automated, documentation, and device exit criteria; an early branch does not advance milestone status by itself.

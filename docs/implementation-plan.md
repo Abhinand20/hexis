@@ -1,4 +1,13 @@
+> MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
+
 # Hexis Implementation Plan
+
+> **Scope note:** This is the historical M0–M10 implementation plan. For the
+> remaining completion work, follow the authoritative
+> [M11–M16 completion objective and delivery plan](completion-objective-and-delivery-plan.md).
+> Its contracts and execution rules supersede conflicting fixed-duration,
+> recovery, and historical-semantics assumptions below. Do not restart the old
+> checklist or require its named execution skills for the new completion program.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
