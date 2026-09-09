@@ -16,7 +16,7 @@ export type CycleAchievementSummary = {
     minutesLogged: number;
   }[];
   strongestWeekLabel: string | null;
-  mostConsistentPracticeName: string | null;
+  mostLoggedPracticeName: string | null;
 };
 
 export type DayPracticeStatus = {
@@ -75,7 +75,7 @@ const MONTH_NAMES = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-function inclusiveDayCount(startDate: string, endDate: string): number {
+export function inclusiveDayCount(startDate: string, endDate: string): number {
   let count = 0;
   let cursor = startDate;
   while (cursor <= endDate) {
@@ -83,6 +83,71 @@ function inclusiveDayCount(startDate: string, endDate: string): number {
     cursor = addLocalDays(cursor, 1);
   }
   return count;
+}
+
+export type BusiestWeek = {
+  weekMonday: string;
+  weekStartDate: string;
+  weekEndDate: string;
+  sessions: number;
+  recordedMinutes: number;
+  isPartialWeek: boolean;
+};
+
+/**
+ * Monday–Sunday bucket with the most in-range sessions, then recorded minutes,
+ * then the earliest week. Display dates are clamped to the cycle bounds.
+ */
+export function findBusiestWeek(
+  cycle: Cycle,
+  logs: SessionLog[],
+): BusiestWeek | null {
+  const inRange = logs.filter(
+    (log) => log.localDate >= cycle.startDate && log.localDate <= cycle.endDate,
+  );
+  if (inRange.length === 0) {
+    return null;
+  }
+
+  let best: BusiestWeek | null = null;
+  let monday = weekStart(cycle.startDate);
+  const lastMonday = weekStart(cycle.endDate);
+
+  while (monday <= lastMonday) {
+    const sunday = addLocalDays(monday, 6);
+    const weekStartBound = monday < cycle.startDate ? cycle.startDate : monday;
+    const weekEndBound = sunday > cycle.endDate ? cycle.endDate : sunday;
+    const weekLogs = inRange.filter(
+      (log) => log.localDate >= weekStartBound && log.localDate <= weekEndBound,
+    );
+    const sessionCount = weekLogs.length;
+    const minutes = weekLogs.reduce(
+      (sum, log) => sum + (log.durationMinutes ?? 0),
+      0,
+    );
+    const isBetter =
+      best === null ||
+      sessionCount > best.sessions ||
+      (sessionCount === best.sessions && minutes > best.recordedMinutes) ||
+      (sessionCount === best.sessions &&
+        minutes === best.recordedMinutes &&
+        monday < best.weekMonday);
+
+    if (isBetter && sessionCount > 0) {
+      best = {
+        weekMonday: monday,
+        weekStartDate: weekStartBound,
+        weekEndDate: weekEndBound,
+        sessions: sessionCount,
+        recordedMinutes: minutes,
+        isPartialWeek: monday < cycle.startDate || sunday > cycle.endDate,
+      };
+    }
+
+    monday = addLocalDays(monday, 7);
+  }
+
+  return best;
 }
 
 function formatWeekDay(localDate: string): string {
@@ -99,50 +164,8 @@ function strongestWeekLabel(
   cycle: Cycle,
   logs: SessionLog[],
 ): string | null {
-  const inRange = logs.filter(
-    (log) => log.localDate >= cycle.startDate && log.localDate <= cycle.endDate,
-  );
-  if (inRange.length === 0) {
-    return null;
-  }
-
-  let bestMonday: string | null = null;
-  let bestSessionCount = -1;
-  let bestMinutes = -1;
-
-  let monday = weekStart(cycle.startDate);
-  const lastMonday = weekStart(cycle.endDate);
-
-  while (monday <= lastMonday) {
-    const sunday = addLocalDays(monday, 6);
-    const weekStartBound = monday < cycle.startDate ? cycle.startDate : monday;
-    const weekEndBound = sunday > cycle.endDate ? cycle.endDate : sunday;
-    const weekLogs = inRange.filter(
-      (log) => log.localDate >= weekStartBound && log.localDate <= weekEndBound,
-    );
-    const sessionCount = weekLogs.length;
-    const minutes = weekLogs.reduce(
-      (sum, log) => sum + (log.durationMinutes ?? 0),
-      0,
-    );
-
-    const isBetter =
-      sessionCount > bestSessionCount ||
-      (sessionCount === bestSessionCount && minutes > bestMinutes) ||
-      (sessionCount === bestSessionCount &&
-        minutes === bestMinutes &&
-        (bestMonday === null || monday < bestMonday));
-
-    if (isBetter && sessionCount > 0) {
-      bestMonday = monday;
-      bestSessionCount = sessionCount;
-      bestMinutes = minutes;
-    }
-
-    monday = addLocalDays(monday, 7);
-  }
-
-  return bestMonday === null ? null : formatWeekLabel(bestMonday);
+  const best = findBusiestWeek(cycle, logs);
+  return best === null ? null : formatWeekLabel(best.weekMonday);
 }
 
 export function buildCycleSummary(
@@ -171,24 +194,20 @@ export function buildCycleSummary(
     };
   });
 
-  let mostConsistentPracticeName: string | null = null;
-  let bestCount = 0;
-  for (const practice of practiceTotals) {
-    if (practice.completedCount > bestCount) {
-      bestCount = practice.completedCount;
-      mostConsistentPracticeName = practice.name;
-    }
-  }
-  if (bestCount === 0) {
-    mostConsistentPracticeName = null;
-  }
+  const mostLogged = [...practiceTotals]
+    .filter((practice) => practice.completedCount > 0)
+    .sort(
+      (left, right) =>
+        right.completedCount - left.completedCount ||
+        left.goalId.localeCompare(right.goalId),
+    )[0];
 
   return {
     activeDayCount: inclusiveDayCount(cycle.startDate, cycle.endDate),
     loggedDayCount: loggedDates.size,
     practiceTotals,
-    strongestWeekLabel: strongestWeekLabel(cycle, logs),
-    mostConsistentPracticeName,
+    strongestWeekLabel: strongestWeekLabel(cycle, inRangeLogs),
+    mostLoggedPracticeName: mostLogged?.name ?? null,
   };
 }
 
