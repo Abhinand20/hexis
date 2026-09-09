@@ -10,7 +10,7 @@ export type ActiveCycleState = {
 };
 
 export function useActiveCycle(): ActiveCycleState {
-  const { db, isLoading: isDatabaseLoading } = useDatabase();
+  const { db, isLoading: isDatabaseLoading, dataVersion } = useDatabase();
   const [state, setState] = useState<ActiveCycleState>({
     cycle: null,
     isLoading: true,
@@ -34,7 +34,7 @@ export function useActiveCycle(): ActiveCycleState {
     return () => {
       cancelled = true;
     };
-  }, [db]);
+  }, [db, dataVersion]);
 
   if (isDatabaseLoading) {
     return { cycle: null, isLoading: true };

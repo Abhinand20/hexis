@@ -65,7 +65,7 @@ export function useCycleLanding(
   today: string = todayLocalDate(),
   reloadToken: number = 0,
 ): CycleLandingState {
-  const { db } = useDatabase();
+  const { db, dataVersion } = useDatabase();
   const [state, setState] = useState<CycleLandingState>({ status: "loading" });
 
   const load = useCallback(async () => {
@@ -165,7 +165,7 @@ export function useCycleLanding(
           err instanceof Error ? err.message : "Something went wrong. Try again.",
       });
     }
-  }, [db, today, reloadToken]);
+  }, [db, today, reloadToken, dataVersion]);
 
   useEffect(() => {
     void load();
