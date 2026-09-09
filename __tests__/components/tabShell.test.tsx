@@ -206,6 +206,9 @@ describe("RootLayout", () => {
     expect(
       screen.getByText("cycles/[cycleId]/add-goal:Add practice"),
     ).toBeTruthy();
+    expect(
+      screen.getByText("cycles/[cycleId]/summary:Cycle wrap-up"),
+    ).toBeTruthy();
   });
 });
 
