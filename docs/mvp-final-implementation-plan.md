@@ -70,6 +70,8 @@ Inspect actual code before editing. The snapshot copies raw tables, so domain pr
 
 Durability now leads, because the `dataVersion` reload mechanism from step 1 is what makes restore correct and the wrap-up's backup CTA depends on the durability service. Steps 1–3 and step 4 are otherwise independent enough to split if desired.
 
+Task-level plans: [durability tasks](mvp-durability-tasks.md) and [wrap-up tasks](mvp-wrap-up-tasks.md). Both are scoped to disjoint file sets so they can run in parallel from base `7fe6394`. The wrap-up branch deliberately omits the backup call-to-action and the early-end redirect; both are integration step 5.
+
 Suggested scoped branches are `codex/mvp-cycle-wrap-up` and `codex/mvp-data-durability`; these are handoff boundaries, not an instruction to launch agents. Durability owns the snapshot/restore modules, `DatabaseProvider` changes and the Settings data section. Wrap-up owns selectors and its route. One integration owner resolves Home, History, provider and navigation intersections.
 
 A cloud handoff must name the exact pushed base SHA, this plan, and the relevant feature specification. Cloud output is a reviewable implementation diff and automated evidence. Native file, provider, signing and physical-device claims require local verification. Return changed files, schema/archive impact, commands/results, known failures and remaining device checks. Do not dispatch the old nine-task program.
