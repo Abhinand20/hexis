@@ -29,6 +29,13 @@ export default function RootLayout() {
               title: "Add practice",
             }}
           />
+          <Stack.Screen
+            name="cycles/[cycleId]/summary"
+            options={{
+              headerShown: true,
+              title: "Cycle wrap-up",
+            }}
+          />
         </Stack>
       </DatabaseProvider>
     </SafeAreaProvider>
