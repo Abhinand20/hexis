@@ -246,6 +246,14 @@ export default function HistoryScreen() {
     );
   }, [resolvedCycleId, router]);
 
+  const openSelectedWrapUp = useCallback(() => {
+    if (!resolvedCycleId) {
+      return;
+    }
+
+    router.push(`/cycles/${encodeURIComponent(resolvedCycleId)}/summary`);
+  }, [resolvedCycleId, router]);
+
   if (state.status === "loading") {
     return (
       <View style={[styles.screen, styles.centered]}>
@@ -446,17 +454,30 @@ export default function HistoryScreen() {
           </Text>
         </Pressable>
         {cycle.status === "completed" || cycle.status === "ended_early" ? (
-          <Pressable
-            accessibilityHint="Prefills a new editable setup without copying activity."
-            accessibilityRole="button"
-            onPress={repeatSelectedCycle}
-            style={({ pressed }) => [
-              styles.repeatButton,
-              pressed ? styles.repeatButtonPressed : null,
-            ]}
-          >
-            <Text style={styles.repeatButtonText}>Repeat cycle</Text>
-          </Pressable>
+          <View style={styles.finishedActions}>
+            <Pressable
+              accessibilityHint="Opens the wrap-up for this finished cycle."
+              accessibilityRole="button"
+              onPress={openSelectedWrapUp}
+              style={({ pressed }) => [
+                styles.repeatButton,
+                pressed ? styles.repeatButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.repeatButtonText}>View wrap-up</Text>
+            </Pressable>
+            <Pressable
+              accessibilityHint="Prefills a new editable setup without copying activity."
+              accessibilityRole="button"
+              onPress={repeatSelectedCycle}
+              style={({ pressed }) => [
+                styles.repeatButton,
+                pressed ? styles.repeatButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.repeatButtonText}>Repeat cycle</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>
 
@@ -1220,6 +1241,12 @@ const styles = StyleSheet.create({
     color: colors.verdigris,
     fontSize: 14,
     fontWeight: "700",
+  },
+  finishedActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   repeatButton: {
     alignItems: "center",

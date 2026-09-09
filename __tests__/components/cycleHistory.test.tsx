@@ -466,6 +466,7 @@ describe("HistoryScreen", () => {
     expect(screen.getByLabelText("Next day")).toHaveAccessibilityState({
       disabled: true,
     });
+    expect(screen.getByRole("button", { name: "View wrap-up" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Repeat cycle" })).toBeTruthy();
     await user.press(
       screen.getByRole("button", { name: /Edit Strength activity/ }),
@@ -515,6 +516,9 @@ describe("HistoryScreen", () => {
     const user = userEvent.setup();
     const screen = await render(<HistoryScreen />);
 
+    await user.press(screen.getByRole("button", { name: "View wrap-up" }));
+    expect(mockPush).toHaveBeenCalledWith("/cycles/cycle-completed/summary");
+
     await user.press(screen.getByRole("button", { name: "Repeat cycle" }));
 
     expect(mockPush).toHaveBeenCalledWith(
@@ -526,6 +530,7 @@ describe("HistoryScreen", () => {
     mockSearchParams = { cycleId: "cycle-1" };
     await act(async () => screen.rerender(<HistoryScreen />));
     expect(screen.queryByRole("button", { name: "Repeat cycle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "View wrap-up" })).toBeNull();
   });
 
   it("labels boundary-week work without counting it as an eligible target", async () => {
