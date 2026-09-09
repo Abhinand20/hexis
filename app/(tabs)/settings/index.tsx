@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useDatabase } from "../../../src/db/DatabaseProvider";
 import { colors, spacing } from "../../../src/design/tokens";
+import { BackupSettingsSection } from "../../../src/features/backup/components/BackupSettingsSection";
 import { createCycleRepository } from "../../../src/features/cycles/data/cycleRepository";
 import { todayLocalDate } from "../../../src/features/cycles/domain/date";
 import type { CycleGoal } from "../../../src/features/cycles/domain/types";
@@ -33,7 +34,7 @@ import {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { db, resetDatabase } = useDatabase();
+  const { db, resetDatabase, dataVersion } = useDatabase();
   const { cycle, isLoading } = useActiveCycle();
   const [goals, setGoals] = useState<CycleGoal[]>([]);
   const [goalsError, setGoalsError] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export default function SettingsScreen() {
       return () => {
         cancelled = true;
       };
-    }, [cycleId, db]),
+    }, [cycleId, db, dataVersion]),
   );
 
   useEffect(() => {
@@ -94,7 +95,7 @@ export default function SettingsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db]);
+  }, [db, dataVersion]);
 
   async function handleReminderToggle(nextValue: boolean) {
     if (!db) {
@@ -254,6 +255,8 @@ export default function SettingsScreen() {
           </Pressable>
         </>
       ) : null}
+
+      <BackupSettingsSection />
 
       {__DEV__ ? (
         <View style={styles.debugPanel}>
