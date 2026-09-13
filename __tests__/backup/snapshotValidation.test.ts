@@ -31,6 +31,7 @@ describe("validateSnapshot", () => {
     expect(preview.cycleCount).toBe(3);
     expect(preview.sessionCount).toBeGreaterThan(0);
     expect(preview.correctionCount).toBeGreaterThan(0);
+    expect(preview.weightEntryCount).toBe(0);
     expect(preview.hasActiveCycle).toBe(true);
   });
 
@@ -39,6 +40,7 @@ describe("validateSnapshot", () => {
     const { preview, problems } = await validateSnapshot(db);
     expect(problems).toEqual([]);
     expect(preview.cycleCount).toBe(0);
+    expect(preview.weightEntryCount).toBe(0);
     expect(preview.hasActiveCycle).toBe(false);
   });
 
@@ -169,6 +171,122 @@ describe("validateSnapshot", () => {
       problems.some(
         (problem) =>
           problem.kind === "invariant" && problem.detail.includes("start_date"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a weight date that is not YYYY-MM-DD", async () => {
+    const db = await openDatabase(":memory:");
+    await db.runAsync(
+      `INSERT INTO daily_weights (
+        id, local_date, weight_grams, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [
+        "weight-bad-date",
+        "2026/08/01",
+        70000,
+        "2026-08-01T12:00:00.000Z",
+        "2026-08-01T12:00:00.000Z",
+      ],
+    );
+    const { problems } = await validateSnapshot(db);
+    expect(
+      problems.some(
+        (problem) =>
+          problem.kind === "invariant" &&
+          problem.detail.includes("daily_weights.local_date"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a non-positive weight in grams", async () => {
+    const db = await openDatabase(":memory:");
+    await db.execAsync("DROP TABLE daily_weights");
+    await db.execAsync(
+      `CREATE TABLE daily_weights (
+        id TEXT PRIMARY KEY NOT NULL,
+        local_date TEXT NOT NULL,
+        weight_grams INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    );
+    await db.runAsync(
+      `INSERT INTO daily_weights (
+        id, local_date, weight_grams, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [
+        "weight-zero",
+        "2026-08-01",
+        0,
+        "2026-08-01T12:00:00.000Z",
+        "2026-08-01T12:00:00.000Z",
+      ],
+    );
+    const { problems } = await validateSnapshot(db);
+    expect(
+      problems.some(
+        (problem) =>
+          problem.kind === "invariant" && problem.detail.includes("grams"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects two weight entries for the same date", async () => {
+    const db = await openDatabase(":memory:");
+    await db.execAsync("DROP INDEX IF EXISTS daily_weights_local_date");
+    await db.runAsync(
+      `INSERT INTO daily_weights (
+        id, local_date, weight_grams, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [
+        "weight-a",
+        "2026-08-01",
+        70000,
+        "2026-08-01T12:00:00.000Z",
+        "2026-08-01T12:00:00.000Z",
+      ],
+    );
+    await db.runAsync(
+      `INSERT INTO daily_weights (
+        id, local_date, weight_grams, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [
+        "weight-b",
+        "2026-08-01",
+        71000,
+        "2026-08-01T13:00:00.000Z",
+        "2026-08-01T13:00:00.000Z",
+      ],
+    );
+    const { problems } = await validateSnapshot(db);
+    expect(
+      problems.some(
+        (problem) =>
+          problem.kind === "invariant" &&
+          problem.detail.includes("same date"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects weight preferences that are not the single allowed row", async () => {
+    const db = await openDatabase(":memory:");
+    await db.execAsync("DROP TABLE weight_preferences");
+    await db.execAsync(
+      `CREATE TABLE weight_preferences (
+        id INTEGER PRIMARY KEY,
+        unit TEXT NOT NULL
+      )`,
+    );
+    await db.runAsync(
+      "INSERT INTO weight_preferences (id, unit) VALUES (2, 'st')",
+    );
+    const { problems } = await validateSnapshot(db);
+    expect(
+      problems.some(
+        (problem) =>
+          problem.kind === "invariant" &&
+          problem.detail.includes("Weight preferences"),
       ),
     ).toBe(true);
   });
