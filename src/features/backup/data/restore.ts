@@ -65,13 +65,20 @@ export async function stageAndValidate(
     if (problems.length > 0) {
       return { ok: false, problems };
     }
+    // Validation may migrate the staging connection forward. ATTACH must read
+    // that migrated file: under Jest the attach path is a separate copy
+    // written before validation, so rewrite it from this connection.
+    const attachPath = await persistValidatedStaging(
+      stagingDb,
+      opened.absolutePath,
+    );
     await stagingDb.closeAsync();
     stagingDb = null;
     return {
       ok: true,
       staged: {
         databaseName: STAGING_DATABASE_NAME,
-        absolutePath: opened.absolutePath,
+        absolutePath: attachPath,
         preview,
       },
     };
@@ -203,6 +210,21 @@ function materializeForAttach(file: File, filePath: string): string {
   }
 }
 
+async function persistValidatedStaging(
+  db: SQLiteDatabase,
+  previousPath: string,
+): Promise<string> {
+  const nodeFs = tryNodeFs();
+  if (!nodeFs) {
+    return previousPath;
+  }
+  const dest = `${nodeFs.tmpdir}/hexis-restore-attach.db`;
+  nodeFs.mkdirSync(parentDirectoryPath(dest), { recursive: true });
+  nodeFs.unlinkIfPresent(dest);
+  await db.execAsync(`VACUUM INTO '${escapeSqlString(dest)}'`);
+  return dest;
+}
+
 async function reconcileSqliteSequence(db: SQLiteDatabase): Promise<void> {
   await db.runAsync(
     "DELETE FROM main.sqlite_sequence WHERE name = 'session_log_revisions'",
@@ -262,10 +284,15 @@ async function assertPostCommit(
     db,
     "SELECT COUNT(*) AS count FROM session_log_revisions",
   );
+  const weightEntryCount = await count(
+    db,
+    "SELECT COUNT(*) AS count FROM daily_weights",
+  );
   if (
     cycleCount !== preview.cycleCount ||
     sessionCount !== preview.sessionCount ||
-    correctionCount !== preview.correctionCount
+    correctionCount !== preview.correctionCount ||
+    weightEntryCount !== preview.weightEntryCount
   ) {
     throw new Error("Restored row counts do not match the snapshot preview");
   }

@@ -45,8 +45,10 @@ export async function recordBackupCreated(
 
 /**
  * Ending a cycle early updates `cycles.status` / `end_date` without changing
- * `created_at`, so a lifecycle-only change is not detected here. See the
- * owner runbook rather than treating freshness as complete coverage.
+ * `created_at`, so a lifecycle-only change is not detected here. A deleted
+ * weight entry leaves no timestamp, and `weight_preferences` has none, so a
+ * deletion-only weight change or a display-unit change is also invisible.
+ * See the owner runbook rather than treating freshness as complete coverage.
  */
 export async function hasChangesSinceBackup(
   db: SQLiteDatabase,
@@ -59,7 +61,9 @@ export async function hasChangesSinceBackup(
       UNION ALL SELECT 1 FROM goal_revisions WHERE created_at > ?
       UNION ALL SELECT 1 FROM session_logs WHERE created_at > ?
       UNION ALL SELECT 1 FROM session_log_revisions WHERE created_at > ?
+      UNION ALL SELECT 1 FROM daily_weights WHERE MAX(created_at, updated_at) > ?
     ) AS changed`,
+    lastBackupCreatedAt,
     lastBackupCreatedAt,
     lastBackupCreatedAt,
     lastBackupCreatedAt,
