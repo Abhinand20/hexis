@@ -276,6 +276,34 @@ describe("WeightScreen", () => {
     });
   });
 
+  it("clears a typed earlier-day draft when the unit changes", async () => {
+    const screen = await renderWeight(async (repository) => {
+      await repository.save({ localDate: "2026-09-12", weightGrams: 70000 });
+    });
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText("Add an earlier day")).toBeTruthy();
+    });
+
+    await user.press(screen.getByText("Choose 2026-09-10"));
+    await user.type(screen.getByLabelText("Earlier day weight"), "69.5");
+    await user.press(screen.getByRole("button", { name: "lb" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Earlier day weight").props.value).toBe("");
+    });
+
+    // 69.5 must not have been saved as 69.5 lb.
+    await user.press(screen.getByRole("button", { name: "Save earlier day" }));
+    await waitFor(() => {
+      expect(screen.getByText("Enter a weight using numbers.")).toBeTruthy();
+    });
+    expect(
+      await createWeightRepository(mockDb).getByDate("2026-09-10"),
+    ).toBeNull();
+  });
+
   it("shows coverage for an incomplete week and the wrap-up comparison fallback", async () => {
     const screen = await renderWeight(async (repository) => {
       await repository.save({ localDate: "2026-09-10", weightGrams: 70000 });
