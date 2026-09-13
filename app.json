@@ -6,7 +6,7 @@
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "hexis",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.abhinand.hexis",
       "supportsTablet": false
