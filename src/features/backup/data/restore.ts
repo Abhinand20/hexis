@@ -148,6 +148,11 @@ export async function discardStaging(staged: StagedSnapshot): Promise<void> {
   }
 }
 
+/**
+ * Gates the automatic pre-restore snapshot, so this must cover every table in
+ * `DELETE_ORDER`. A table that restore wipes but this query ignores is data
+ * destroyed with no safety copy.
+ */
 export async function installationIsEmpty(db: SQLiteDatabase): Promise<boolean> {
   const row = await db.getFirstAsync<{ changed: number }>(
     `SELECT EXISTS (
@@ -157,6 +162,8 @@ export async function installationIsEmpty(db: SQLiteDatabase): Promise<boolean> 
       UNION ALL SELECT 1 FROM session_logs
       UNION ALL SELECT 1 FROM session_log_revisions
       UNION ALL SELECT 1 FROM reminder_settings
+      UNION ALL SELECT 1 FROM daily_weights
+      UNION ALL SELECT 1 FROM weight_preferences
     ) AS changed`,
   );
   return (row?.changed ?? 0) === 0;

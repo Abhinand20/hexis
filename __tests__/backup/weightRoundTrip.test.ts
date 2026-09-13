@@ -18,6 +18,7 @@ import { BackupPreviewCopy } from "../../src/features/backup/components/BackupPr
 import { hasChangesSinceBackup } from "../../src/features/backup/data/backupStatus";
 import { fileUriToPath } from "../../src/features/backup/data/paths";
 import {
+  installationIsEmpty,
   replaceLiveData,
   stageAndValidate,
   type StagedSnapshot,
@@ -25,6 +26,7 @@ import {
 import { createSnapshot } from "../../src/features/backup/data/snapshot";
 import { validateSnapshot } from "../../src/features/backup/data/snapshotValidation";
 import {
+  DELETE_ORDER,
   TABLE_COLUMNS,
   type LiveTable,
 } from "../../src/features/backup/data/tables";
@@ -221,6 +223,57 @@ describe("weight backup round-trip", () => {
       "SELECT MAX(sequence) AS sequence FROM session_log_revisions",
     );
     expect(newSeq?.sequence).toBe(originalSeq!.seq + 1);
+  });
+});
+
+describe("installationIsEmpty covers everything restore deletes", () => {
+  let live: SQLiteDatabase;
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = makeBackupTempDir();
+    live = await openLiveDatabase();
+  });
+
+  afterEach(() => {
+    cleanupBackupTempDir(tempDir);
+  });
+
+  it("treats a fresh installation as empty", async () => {
+    expect(await installationIsEmpty(live)).toBe(true);
+  });
+
+  it("reports a weight-only installation as non-empty", async () => {
+    await createWeightRepository(live).save({
+      localDate: "2026-08-01",
+      weightGrams: 69500,
+    });
+    expect(await installationIsEmpty(live)).toBe(false);
+  });
+
+  it("reports a unit-preference-only installation as non-empty", async () => {
+    await createWeightRepository(live).setUnit("lb");
+    expect(await installationIsEmpty(live)).toBe(false);
+  });
+
+  it("sees a row in every table restore deletes", async () => {
+    for (const table of DELETE_ORDER) {
+      const row = await live.getFirstAsync(`SELECT 1 FROM ${table} LIMIT 1`);
+      expect(row).toBeNull();
+    }
+    await populateRepresentativeData(live);
+    await createWeightRepository(live).save({
+      localDate: "2026-08-01",
+      weightGrams: 69500,
+    });
+    await createWeightRepository(live).setUnit("lb");
+
+    // Any table restore wipes must be one this query would have noticed.
+    for (const table of DELETE_ORDER) {
+      const row = await live.getFirstAsync(`SELECT 1 FROM ${table} LIMIT 1`);
+      expect(row).not.toBeNull();
+    }
+    expect(await installationIsEmpty(live)).toBe(false);
   });
 });
 
