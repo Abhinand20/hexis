@@ -212,6 +212,7 @@ async function snapshotOf(
     cycleCount: tables.cycles.length,
     sessionCount: tables.session_logs.length,
     correctionCount: tables.session_log_revisions.length,
+    weightEntryCount: tables.daily_weights.length,
     hasActiveCycle: tables.cycles.some((row) => row.status === "active"),
   };
   return {
