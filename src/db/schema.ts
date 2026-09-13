@@ -101,3 +101,18 @@ export const SCHEMA_V6: string[] = [
 ON cycles(status)
 WHERE status = 'active'`,
 ];
+
+export const SCHEMA_V7: string[] = [
+  `CREATE TABLE daily_weights (
+  id TEXT PRIMARY KEY NOT NULL,
+  local_date TEXT NOT NULL,
+  weight_grams INTEGER NOT NULL CHECK (weight_grams > 0),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)`,
+  `CREATE UNIQUE INDEX daily_weights_local_date ON daily_weights(local_date)`,
+  `CREATE TABLE weight_preferences (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  unit TEXT NOT NULL CHECK (unit IN ('kg', 'lb'))
+)`,
+];
