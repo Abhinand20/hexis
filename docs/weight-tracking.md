@@ -1,6 +1,6 @@
 # Feature: daily weight logging and averages
 
-Status: specification only; not implemented or accepted by this document.
+Status: implemented on `main` at `c119d17`; every automated criterion in §8 holds (44 suites / 377 tests, `tsc --noEmit` clean, `expo-doctor` 21/21). The §8 device acceptance list is untouched — nothing here has been exercised on a device, under VoiceOver, at large Dynamic Type, or through a real reinstall-and-restore.
 Date: 2026-09-12. Baseline: `main` at `85f23fb`, schema version 6, 40 suites / 319 tests passing.
 Task-level plan: [weight tracking tasks](weight-tracking-tasks.md).
 

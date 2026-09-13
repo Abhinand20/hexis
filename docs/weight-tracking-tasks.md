@@ -1,5 +1,7 @@
 # Implementation plan: daily weight logging and averages
 
+Status: W1–W9 are done and merged into `main` (PRs #3, #4, #5). This document is kept as the historical plan, so two of its statements are now stale: the "verified facts" describe schema v6 rather than the v7 W1 added, and the ownership table credits the month helpers to W4 when they shipped in W3. The W5 correction about `ATTACH` is recorded inline below.
+
 Specification: [weight tracking spec](weight-tracking.md).
 Base SHA: `85f23fb` (pushed to origin). Branch: `codex/weight-tracking`.
 Baseline to preserve: 40 suites / 319 tests passing, `npm run typecheck` clean, `npx expo-doctor` 21/21.
