@@ -1,6 +1,7 @@
 import { File } from "expo-file-system";
 import type { SQLiteDatabase } from "expo-sqlite";
 
+import { SUPPORTED_SCHEMA_VERSION } from "../../src/db/migrations";
 import { tryNodeFs } from "../../src/features/backup/data/nodeFs";
 import { fileUriToPath } from "../../src/features/backup/data/paths";
 import {
@@ -45,7 +46,7 @@ describe("createSnapshot", () => {
 
     await attachSnapshot(db, absolutePath);
     expect(await db.getFirstAsync("PRAGMA snap.user_version")).toEqual({
-      user_version: 6,
+      user_version: SUPPORTED_SCHEMA_VERSION,
     });
     const metadata = await db.getFirstAsync(
       `SELECT created_at, app_version, schema_version FROM snap.${SNAPSHOT_METADATA_TABLE}`,
@@ -53,7 +54,7 @@ describe("createSnapshot", () => {
     expect(metadata).toEqual({
       created_at: new Date(2026, 8, 8, 12).toISOString(),
       app_version: "0.1.0",
-      schema_version: 6,
+      schema_version: SUPPORTED_SCHEMA_VERSION,
     });
     const liveSeq = await db.getFirstAsync<{ seq: number }>(
       "SELECT seq FROM main.sqlite_sequence WHERE name = 'session_log_revisions'",

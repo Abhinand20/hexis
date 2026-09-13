@@ -6,6 +6,7 @@ import {
   SCHEMA_V4,
   SCHEMA_V5,
   SCHEMA_V6,
+  SCHEMA_V7,
 } from "./schema";
 
 const MIGRATIONS: string[][] = [
@@ -15,6 +16,7 @@ const MIGRATIONS: string[][] = [
   SCHEMA_V4,
   SCHEMA_V5,
   SCHEMA_V6,
+  SCHEMA_V7,
 ];
 
 export const SUPPORTED_SCHEMA_VERSION = MIGRATIONS.length;
