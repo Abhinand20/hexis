@@ -14,7 +14,7 @@ export const ICLOUD_DRIVE_INSTRUCTION =
 export const SHARE_HONESTY_COPY =
   "Hexis cannot confirm the file reached iCloud or that iCloud finished uploading it. Completing the share sheet is not proof of a durable copy.";
 
-type CreateBackupState =
+export type CreateBackupState =
   | { status: "idle" }
   | { status: "working" }
   | { status: "success"; fileName: string }

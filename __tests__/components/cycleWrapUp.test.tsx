@@ -2,6 +2,10 @@ import { act, render, renderHook, waitFor } from "@testing-library/react-native"
 import { userEvent } from "@testing-library/react-native";
 
 import CycleWrapUpScreen from "../../app/cycles/[cycleId]/summary";
+import {
+  ICLOUD_DRIVE_INSTRUCTION,
+  SHARE_HONESTY_COPY,
+} from "../../src/features/backup/hooks/useCreateBackup";
 import type {
   WrapUpComparison,
   WrapUpMetrics,
@@ -526,12 +530,16 @@ describe("CycleWrapUpScreen", () => {
     expect(screen.getByText(new RegExp(longName))).toBeTruthy();
   });
 
-  it("does not offer a backup action on this branch", async () => {
+  it("offers backup with freshness, repeat and full activity", async () => {
     mockUseCycleWrapUp.mockReturnValue(readyState());
     const screen = await render(<CycleWrapUpScreen />);
 
-    expect(screen.queryByRole("button", { name: /back up/i })).toBeNull();
-    expect(screen.queryByText(/back up data/i)).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByText("No backup yet.")).toBeTruthy();
+    });
+    expect(screen.getByText(SHARE_HONESTY_COPY)).toBeTruthy();
+    expect(screen.getByText(ICLOUD_DRIVE_INSTRUCTION)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back up data" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Repeat cycle" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "See full activity" })).toBeTruthy();
   });

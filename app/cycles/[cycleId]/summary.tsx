@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface } from "../../../src/design/GlassSurface";
 import { colors, spacing } from "../../../src/design/tokens";
+import { BackupCallToAction } from "../../../src/features/backup/components/BackupCallToAction";
 import { formatCycleDateRange } from "../../../src/features/cycles/domain/cycleArchive";
 import type {
   WrapUpComparison,
@@ -241,6 +242,7 @@ export default function CycleWrapUpScreen() {
       ) : null}
 
       <View style={styles.actions}>
+        <BackupCallToAction />
         <Pressable
           accessibilityRole="button"
           onPress={repeatCycle}

@@ -13,6 +13,7 @@ import { createCycle } from "../../src/test/factories";
 const mockPush = jest.fn();
 const mockNavigate = jest.fn();
 const mockResetDatabase = jest.fn();
+const mockReloadAll = jest.fn();
 const mockGetActiveCycle = jest.fn();
 const mockEndCycleEarly = jest.fn();
 const mockListActiveForCycle = jest.fn();
@@ -87,6 +88,7 @@ jest.mock("../../src/db/DatabaseProvider", () => {
       isLoading: false,
       error: null,
       resetDatabase: (...args: unknown[]) => mockResetDatabase(...args),
+      reloadAll: (...args: unknown[]) => mockReloadAll(...args),
     }),
   };
 });
@@ -382,7 +384,7 @@ describe("SettingsScreen", () => {
     expect(mockOpenSettings).toHaveBeenCalled();
   });
 
-  it("ends the active cycle early after confirmation and returns home", async () => {
+  it("ends the active cycle early after confirmation and opens its wrap-up", async () => {
     mockUseActiveCycle.mockReturnValue({
       cycle: createCycle({ id: "cycle-1" }),
       isLoading: false,
@@ -405,8 +407,11 @@ describe("SettingsScreen", () => {
 
     await waitFor(() => {
       expect(mockEndCycleEarly).toHaveBeenCalledWith("cycle-1", todayLocalDate());
-      expect(mockNavigate).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/cycles/cycle-1/summary");
     });
+    // Settings, Home and History all still hold this cycle as active.
+    expect(mockReloadAll).toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalledWith("/");
 
     alertSpy.mockRestore();
   });

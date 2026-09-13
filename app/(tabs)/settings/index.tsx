@@ -34,7 +34,7 @@ import {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { db, resetDatabase, dataVersion } = useDatabase();
+  const { db, resetDatabase, dataVersion, reloadAll } = useDatabase();
   const { cycle, isLoading } = useActiveCycle();
   const [goals, setGoals] = useState<CycleGoal[]>([]);
   const [goalsError, setGoalsError] = useState<string | null>(null);
@@ -140,7 +140,10 @@ export default function SettingsScreen() {
           style: "destructive",
           onPress: async () => {
             await createCycleRepository(db).endCycleEarly(cycle.id, todayLocalDate());
-            router.navigate("/");
+            // Every screen still holds this cycle as active, including the
+            // practice list behind the wrap-up.
+            reloadAll();
+            router.push(`/cycles/${cycle.id}/summary`);
           },
         },
       ],

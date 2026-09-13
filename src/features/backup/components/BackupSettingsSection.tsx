@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { colors, spacing } from "../../../design/tokens";
 import { useDatabase } from "../../../db/DatabaseProvider";
 import { BackupPreviewCopy } from "./BackupPreviewCopy";
+import { BackupCreateResult } from "./BackupCreateResult";
 import {
   ICLOUD_DRIVE_INSTRUCTION,
   SHARE_HONESTY_COPY,
@@ -92,35 +93,12 @@ export function BackupSettingsSection() {
         <Text style={styles.actionLabel}>Restore backup</Text>
       </Pressable>
 
-      {create.state.status === "success" ? (
-        <View style={styles.panel}>
-          <Text style={styles.body}>
-            Backup file {create.state.fileName} is ready. Completing the share
-            sheet does not prove iCloud has the file.
-          </Text>
-          <Text style={styles.instruction}>{ICLOUD_DRIVE_INSTRUCTION}</Text>
-        </View>
-      ) : null}
-      {create.state.status === "cancelled" ? (
-        <Text style={styles.caption}>
-          Share was cancelled. No backup time was recorded.
-        </Text>
-      ) : null}
-      {create.state.status === "error" ? (
-        <View style={styles.panel}>
-          <Text accessibilityLiveRegion="polite" style={styles.error}>
-            {create.state.message}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              void create.createBackup();
-            }}
-          >
-            <Text style={styles.actionLabel}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <BackupCreateResult
+        state={create.state}
+        onRetry={() => {
+          void create.createBackup();
+        }}
+      />
 
       {restore.state.status === "check" ? (
         <View style={styles.panel}>
