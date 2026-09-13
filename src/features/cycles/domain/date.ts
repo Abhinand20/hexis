@@ -25,6 +25,22 @@ export function weekStart(date: string): string {
   return addLocalDays(date, -daysSinceMonday);
 }
 
+export function monthKey(date: string): string {
+  return date.slice(0, 7);
+}
+
+export function monthStart(date: string): string {
+  return `${monthKey(date)}-01`;
+}
+
+export function monthEnd(date: string): string {
+  const [year, month] = date.split("-").map(Number);
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextStart = `${String(nextYear).padStart(4, "0")}-${String(nextMonth).padStart(2, "0")}-01`;
+  return addLocalDays(nextStart, -1);
+}
+
 /**
  * Formats a JS `Date` as a local `YYYY-MM-DD` string using its local
  * year/month/day components (never UTC), matching how every other local-date
