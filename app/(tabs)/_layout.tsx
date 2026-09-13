@@ -33,6 +33,10 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>History</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={tabIcon("time-outline")} />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="weight">
+        <NativeTabs.Trigger.Label>Weight</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={tabIcon("scale-outline")} />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings/index">
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={tabIcon("settings-outline")} />
