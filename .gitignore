@@ -1,4 +1,6 @@
-node_modules/
+# Bare name, not `node_modules/`: worktrees symlink it, and a trailing slash
+# only ignores real directories.
+node_modules
 .expo/
 dist/
 web-build/
