@@ -191,11 +191,12 @@ beforeEach(() => {
 });
 
 describe("TabsLayout", () => {
-  it("shows all three tabs", async () => {
+  it("shows all four tabs", async () => {
     const screen = await render(<TabsLayout />);
 
     expect(screen.getByRole("tab", { name: "Home" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "History" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Weight" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Settings" })).toBeTruthy();
     expect(screen.queryByRole("tab", { name: "Week" })).toBeNull();
   });
