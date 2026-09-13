@@ -34,7 +34,9 @@ Probed on 2026-09-12 against the installed packages and this checkout. Re-verify
 - `src/features/cycles/domain/date.ts` exports `addLocalDays`, `weekStart`, `todayLocalDate`, `localDateForInstant` and `cycleEndDate`. There are **no** month helpers; W4 adds them.
 - `@react-native-community/datetimepicker` in this repo takes **`onValueChange`**, not `onChange`. Commit `ef0d155` fixed exactly that mistake. Copy the working usage from the reminder row in Settings.
 - All of `scale-outline`, `body-outline`, `barbell-outline`, `trending-up-outline`, `analytics-outline`, `fitness-outline` and `speedometer-outline` exist in the installed Ionicons glyph map. Confirmed by probe against the glyph JSON.
-- `snapshotValidation.validateSnapshot` calls `runMigrations(stagingDb)` whenever the snapshot's `user_version` is below supported, **before** the missing-table check, and `stageAndValidate` hands `replaceLiveData` that same migrated staging file to `ATTACH`. This is why a pre-V7 backup restores cleanly. Verified by reading the code, **not** by execution — prove it with the test in W8.
+- `snapshotValidation.validateSnapshot` calls `runMigrations(stagingDb)` whenever the snapshot's `user_version` is below supported, **before** the missing-table check, and `stageAndValidate` hands `replaceLiveData` that same migrated staging file to `ATTACH`. This is why a pre-V7 backup restores cleanly.
+
+  **Correction (W5, proven by execution):** the above holds on device only. Under Jest, `materializeForAttach` copies the staging bytes to a separate file *before* validation runs, so `ATTACH` read an unmigrated copy and a pre-V7 restore failed. `stageAndValidate` now `VACUUM INTO`s the migrated connection over that attach path. This is why the claim above must not be trusted from reading alone.
 - `reconcileSqliteSequence` in `restore.ts` is hardcoded to `session_log_revisions`. Neither new table uses `AUTOINCREMENT`, so leave that function alone.
 
 ## Known traps
