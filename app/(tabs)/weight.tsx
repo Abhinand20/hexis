@@ -104,6 +104,11 @@ export default function WeightScreen() {
 
   const changeUnit = useCallback(
     (nextUnit: WeightUnit) => {
+      // Today's field is re-derived from the stored entry, but these drafts
+      // would keep a number typed in the old unit and save it as the new one.
+      setBackfillInput("");
+      setEditingDate(null);
+      setEditingInput("");
       void log.changeUnit(nextUnit);
     },
     [log],
