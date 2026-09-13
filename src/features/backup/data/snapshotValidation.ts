@@ -12,6 +12,7 @@ export type SnapshotPreview = {
   cycleCount: number;
   sessionCount: number;
   correctionCount: number;
+  weightEntryCount: number;
   hasActiveCycle: boolean;
 };
 
@@ -314,6 +315,58 @@ async function collectInvariantProblems(
       });
     }
   }
+
+  if (tables.has("daily_weights")) {
+    await rejectBadDates(db, problems, "daily_weights", ["local_date"]);
+
+    const badGrams = await count(
+      db,
+      "SELECT COUNT(*) AS count FROM daily_weights WHERE weight_grams <= 0",
+    );
+    if (badGrams > 0) {
+      problems.push({
+        kind: "invariant",
+        detail: "A weight entry must be a positive number of grams.",
+      });
+    }
+
+    const uniqueness = await db.getFirstAsync<{
+      total: number;
+      distinct_dates: number;
+    }>(
+      "SELECT COUNT(*) AS total, COUNT(DISTINCT local_date) AS distinct_dates FROM daily_weights",
+    );
+    if ((uniqueness?.total ?? 0) !== (uniqueness?.distinct_dates ?? 0)) {
+      problems.push({
+        kind: "invariant",
+        detail: "A backup cannot contain two weight entries for the same date.",
+      });
+    }
+  }
+
+  if (tables.has("weight_preferences")) {
+    const preferenceCount = await count(
+      db,
+      "SELECT COUNT(*) AS count FROM weight_preferences",
+    );
+    if (preferenceCount > 1) {
+      problems.push({
+        kind: "invariant",
+        detail: "Weight preferences must be a single row.",
+      });
+    }
+    const badPreference = await count(
+      db,
+      `SELECT COUNT(*) AS count FROM weight_preferences
+       WHERE id != 1 OR unit NOT IN ('kg', 'lb')`,
+    );
+    if (badPreference > 0) {
+      problems.push({
+        kind: "invariant",
+        detail: "Weight preferences are out of range.",
+      });
+    }
+  }
 }
 
 async function collectReferentialProblems(
@@ -414,6 +467,9 @@ async function readPreview(db: SQLiteDatabase): Promise<SnapshotPreview> {
   const correctionCount = tables.has("session_log_revisions")
     ? await count(db, "SELECT COUNT(*) AS count FROM session_log_revisions")
     : 0;
+  const weightEntryCount = tables.has("daily_weights")
+    ? await count(db, "SELECT COUNT(*) AS count FROM daily_weights")
+    : 0;
   const activeCount = tables.has("cycles")
     ? await count(
         db,
@@ -428,6 +484,7 @@ async function readPreview(db: SQLiteDatabase): Promise<SnapshotPreview> {
     cycleCount,
     sessionCount,
     correctionCount,
+    weightEntryCount,
     hasActiveCycle: activeCount > 0,
   };
 }
@@ -440,6 +497,7 @@ function emptyPreview(schemaVersion: number): SnapshotPreview {
     cycleCount: 0,
     sessionCount: 0,
     correctionCount: 0,
+    weightEntryCount: 0,
     hasActiveCycle: false,
   };
 }

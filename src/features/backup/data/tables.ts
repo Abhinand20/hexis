@@ -5,6 +5,8 @@ export const LIVE_TABLES = [
   "session_logs",
   "session_log_revisions",
   "reminder_settings",
+  "daily_weights",
+  "weight_preferences",
 ] as const;
 
 export type LiveTable = (typeof LIVE_TABLES)[number];
@@ -16,6 +18,8 @@ export const DELETE_ORDER: LiveTable[] = [
   "cycle_goals",
   "cycles",
   "reminder_settings",
+  "daily_weights",
+  "weight_preferences",
 ];
 
 export const INSERT_ORDER: LiveTable[] = [
@@ -25,6 +29,8 @@ export const INSERT_ORDER: LiveTable[] = [
   "session_logs",
   "session_log_revisions",
   "reminder_settings",
+  "daily_weights",
+  "weight_preferences",
 ];
 
 /**
@@ -89,6 +95,14 @@ export const TABLE_COLUMNS: Record<LiveTable, readonly string[]> = {
     "minute",
     "notification_identifier",
   ],
+  daily_weights: [
+    "id",
+    "local_date",
+    "weight_grams",
+    "created_at",
+    "updated_at",
+  ],
+  weight_preferences: ["id", "unit"],
 };
 
 export function insertSelectSql(table: LiveTable): string {

@@ -18,7 +18,9 @@ export function BackupPreviewCopy({ preview }: { preview: SnapshotPreview }) {
         {preview.cycleCount} cycle{preview.cycleCount === 1 ? "" : "s"},{" "}
         {preview.sessionCount} session{preview.sessionCount === 1 ? "" : "s"},{" "}
         {preview.correctionCount} correction
-        {preview.correctionCount === 1 ? "" : "s"}.
+        {preview.correctionCount === 1 ? "" : "s"},{" "}
+        {preview.weightEntryCount} weight
+        {preview.weightEntryCount === 1 ? " entry" : " entries"}.
         {preview.hasActiveCycle
           ? " It contains an active cycle."
           : " It does not contain an active cycle."}
