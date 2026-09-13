@@ -30,6 +30,14 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen
+            name="log-weight"
+            options={{
+              presentation: "modal",
+              headerShown: true,
+              title: "Add an earlier day",
+            }}
+          />
+          <Stack.Screen
             name="cycles/[cycleId]/summary"
             options={{
               headerShown: true,

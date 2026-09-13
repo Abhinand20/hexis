@@ -9,12 +9,15 @@ import { createWeightRepository } from "../../src/features/weight/data/weightRep
 import { formatWeight } from "../../src/features/weight/domain/units";
 
 const mockToday = "2026-09-12";
+const mockPush = jest.fn();
 let mockDb: SQLiteDatabase;
 
 jest.mock("expo-router", () => {
   const React = require("react") as typeof import("react");
   return {
     ...jest.requireActual("expo-router"),
+    // Read through a closure: this factory runs before `mockPush` is assigned.
+    router: { push: (href: string) => mockPush(href) },
     useFocusEffect: (callback: () => void | (() => void)) => {
       React.useEffect(callback, [callback]);
     },
@@ -44,48 +47,6 @@ jest.mock("../../src/features/cycles/domain/date", () => {
   };
 });
 
-jest.mock("@react-native-community/datetimepicker", () => {
-  const React = require("react") as typeof import("react");
-  const { Pressable, Text } = require("react-native") as typeof import("react-native");
-
-  return {
-    __esModule: true,
-    default: function MockDateTimePicker({
-      onValueChange,
-    }: {
-      onValueChange?: (_event: unknown, date: Date) => void;
-    }) {
-      return (
-        <>
-          <Text>Date picker</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              onValueChange?.(
-                { nativeEvent: { timestamp: 0, utcOffset: 0 } },
-                new Date(2026, 8, 10),
-              )
-            }
-          >
-            <Text>Choose 2026-09-10</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              onValueChange?.(
-                { nativeEvent: { timestamp: 0, utcOffset: 0 } },
-                new Date(2026, 8, 13),
-              )
-            }
-          >
-            <Text>Choose 2026-09-13</Text>
-          </Pressable>
-        </>
-      );
-    },
-  };
-});
-
 async function renderWeight(
   seed?: (repository: ReturnType<typeof createWeightRepository>) => Promise<void>,
 ) {
@@ -98,6 +59,7 @@ async function renderWeight(
 
 beforeEach(() => {
   jest.restoreAllMocks();
+  mockPush.mockClear();
 });
 
 describe("WeightScreen", () => {
@@ -163,39 +125,23 @@ describe("WeightScreen", () => {
     ).toHaveLength(1);
   });
 
-  it("backfills an earlier date and refuses a future date", async () => {
+  it("opens the earlier-day modal instead of logging inline", async () => {
     const screen = await renderWeight(async (repository) => {
       await repository.save({ localDate: "2026-09-12", weightGrams: 70000 });
     });
     const user = userEvent.setup();
 
     await waitFor(() => {
-      expect(screen.getByText("Add an earlier day")).toBeTruthy();
-    });
-
-    await user.press(screen.getByText("Choose 2026-09-10"));
-    await user.type(screen.getByLabelText("Earlier day weight"), "69.5");
-    await user.press(screen.getByRole("button", { name: "Save earlier day" }));
-
-    await waitFor(() => {
       expect(
-        screen.getByLabelText("Weight for 2026-09-10, 69.5 kg"),
+        screen.getByRole("button", { name: "Add an earlier day" }),
       ).toBeTruthy();
     });
+    // The date picker and its own input belong to the modal now.
+    expect(screen.queryByLabelText("Earlier day weight")).toBeNull();
 
-    await user.press(screen.getByText("Choose 2026-09-13"));
-    await user.clear(screen.getByLabelText("Earlier day weight"));
-    await user.type(screen.getByLabelText("Earlier day weight"), "71.0");
-    await user.press(screen.getByRole("button", { name: "Save earlier day" }));
+    await user.press(screen.getByRole("button", { name: "Add an earlier day" }));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("A weight cannot be recorded for a future date."),
-      ).toBeTruthy();
-    });
-    expect(
-      await createWeightRepository(mockDb).getByDate("2026-09-13"),
-    ).toBeNull();
+    expect(mockPush).toHaveBeenCalledWith("/log-weight");
   });
 
   it("refuses an implausible value with a readable message", async () => {
@@ -276,32 +222,29 @@ describe("WeightScreen", () => {
     });
   });
 
-  it("clears a typed earlier-day draft when the unit changes", async () => {
+  it("abandons an open edit draft when the unit changes", async () => {
     const screen = await renderWeight(async (repository) => {
       await repository.save({ localDate: "2026-09-12", weightGrams: 70000 });
     });
     const user = userEvent.setup();
 
     await waitFor(() => {
-      expect(screen.getByText("Add an earlier day")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     });
 
-    await user.press(screen.getByText("Choose 2026-09-10"));
-    await user.type(screen.getByLabelText("Earlier day weight"), "69.5");
+    await user.press(screen.getByRole("button", { name: "Edit" }));
+    await user.clear(screen.getByLabelText("Edit weight for 2026-09-12"));
+    await user.type(screen.getByLabelText("Edit weight for 2026-09-12"), "69.5");
     await user.press(screen.getByRole("button", { name: "lb" }));
 
+    // 69.5 was typed as kg, so it must not survive into an lb save.
     await waitFor(() => {
-      expect(screen.getByLabelText("Earlier day weight").props.value).toBe("");
-    });
-
-    // 69.5 must not have been saved as 69.5 lb.
-    await user.press(screen.getByRole("button", { name: "Save earlier day" }));
-    await waitFor(() => {
-      expect(screen.getByText("Enter a weight using numbers.")).toBeTruthy();
+      expect(screen.queryByLabelText("Edit weight for 2026-09-12")).toBeNull();
     });
     expect(
-      await createWeightRepository(mockDb).getByDate("2026-09-10"),
-    ).toBeNull();
+      (await createWeightRepository(mockDb).getByDate("2026-09-12"))
+        ?.weightGrams,
+    ).toBe(70000);
   });
 
   it("shows coverage for an incomplete week and the wrap-up comparison fallback", async () => {

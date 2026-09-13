@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import DateTimePicker, {
-  type DateTimePickerChangeEvent,
-} from "@react-native-community/datetimepicker";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -19,31 +16,19 @@ import { colors, spacing } from "../../src/design/tokens";
 import { todayLocalDate } from "../../src/features/cycles/domain/date";
 import { WeightEntryRow } from "../../src/features/weight/components/WeightEntryRow";
 import { WeightPeriodCard } from "../../src/features/weight/components/WeightPeriodCard";
-import { gramsToUnit, unitToGrams } from "../../src/features/weight/domain/units";
+import {
+  gramsToUnit,
+  parseDisplayWeight,
+  unitToGrams,
+} from "../../src/features/weight/domain/units";
 import type { WeightUnit } from "../../src/features/weight/domain/types";
 import { useWeightAverages } from "../../src/features/weight/hooks/useWeightAverages";
 import { useWeightLog } from "../../src/features/weight/hooks/useWeightLog";
-
-function parseDisplayWeight(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed === "" || !/^\d+(\.\d+)?$/.test(trimmed)) {
-    return null;
-  }
-  const value = Number(trimmed);
-  return Number.isFinite(value) ? value : null;
-}
-
-function dateFromLocalDate(localDate: string): Date {
-  const [year, month, day] = localDate.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
 
 export default function WeightScreen() {
   const insets = useSafeAreaInsets();
   const [reloadToken, setReloadToken] = useState(0);
   const [todayInput, setTodayInput] = useState("");
-  const [backfillInput, setBackfillInput] = useState("");
-  const [backfillDate, setBackfillDate] = useState(todayLocalDate());
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [editingInput, setEditingInput] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -91,34 +76,23 @@ export default function WeightScreen() {
       try {
         await log.save(localDate, unitToGrams(value, unit));
         setReloadToken((value) => value + 1);
-        if (localDate !== today) {
-          setBackfillInput("");
-        }
         setEditingDate(null);
       } catch (reason) {
         log.recordActionError(reason);
       }
     },
-    [log, today, unit],
+    [log, unit],
   );
 
   const changeUnit = useCallback(
     (nextUnit: WeightUnit) => {
-      // Today's field is re-derived from the stored entry, but these drafts
+      // Today's field is re-derived from the stored entry, but this draft
       // would keep a number typed in the old unit and save it as the new one.
-      setBackfillInput("");
       setEditingDate(null);
       setEditingInput("");
       void log.changeUnit(nextUnit);
     },
     [log],
-  );
-
-  const handleBackfillDate = useCallback(
-    (_event: DateTimePickerChangeEvent, selectedDate: Date) => {
-      setBackfillDate(todayLocalDate(selectedDate));
-    },
-    [],
   );
 
   const confirmDelete = useCallback(
@@ -291,43 +265,18 @@ export default function WeightScreen() {
             />
           ))}
 
-          <Text style={[styles.sectionLabel, styles.sectionSpacing]}>
-            Add an earlier day
-          </Text>
-          <Text
-            accessibilityLabel={`Earlier day ${backfillDate}`}
-            style={styles.backfillDate}
-          >
-            {backfillDate}
-          </Text>
-          <View style={styles.picker}>
-            <DateTimePicker
-              mode="date"
-              value={dateFromLocalDate(backfillDate)}
-              maximumDate={dateFromLocalDate(today)}
-              onValueChange={handleBackfillDate}
-            />
-          </View>
-          <TextInput
-            accessibilityLabel="Earlier day weight"
-            keyboardType="decimal-pad"
-            onChangeText={setBackfillInput}
-            placeholder={unit === "kg" ? "70.0" : "154.3"}
-            placeholderTextColor={colors.mutedInk}
-            style={styles.input}
-            value={backfillInput}
-          />
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              void submitWeight(backfillDate, backfillInput);
+              router.push("/log-weight");
             }}
             style={({ pressed }) => [
               styles.secondaryButton,
+              styles.sectionSpacing,
               pressed ? styles.pressed : null,
             ]}
           >
-            <Text style={styles.secondaryButtonText}>Save earlier day</Text>
+            <Text style={styles.secondaryButtonText}>Add an earlier day</Text>
           </Pressable>
         </>
       )}
@@ -498,13 +447,5 @@ const styles = StyleSheet.create({
   loadingLabel: {
     color: colors.mutedInk,
     fontSize: 15,
-  },
-  backfillDate: {
-    color: colors.ink,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  picker: {
-    alignItems: "flex-start",
   },
 });

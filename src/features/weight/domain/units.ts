@@ -17,6 +17,19 @@ export function formatWeight(grams: number, unit: WeightUnit): string {
   return `${gramsToUnit(grams, unit).toFixed(1)} ${unit}`;
 }
 
+/**
+ * Returns null for anything that is not a plain positive decimal, so a partly
+ * typed value never reaches `unitToGrams` and get stored as a rounded guess.
+ */
+export function parseDisplayWeight(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "" || !/^\d+(\.\d+)?$/.test(trimmed)) {
+    return null;
+  }
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
+}
+
 export function isPlausibleWeight(grams: number): boolean {
   return (
     Number.isInteger(grams) &&
