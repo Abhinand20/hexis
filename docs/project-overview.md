@@ -105,17 +105,17 @@ The landing page replaces a traditional “today” checklist. Its hierarchy ans
 1. **Cycle header:** cycle name, `Day X / duration`, and days remaining.
 2. **This week:** sessions and minutes logged, eligible targets and remaining effort, and calendar days left in the bounded week.
 3. **Recent rhythm:** seven local-day buckets plus a neutral session-count comparison with the preceding week.
-4. **Unified practice list:** stable user order, explicit remaining progress, current streak, and a direct **Log** action. A partial-membership week shows raw effort but is labelled instead of scored.
+4. **Unified practice list:** stable user order, explicit remaining progress, current streak, and a session control. A partial-membership week shows raw effort but is labelled instead of scored.
 5. **Cycle calendar:** secondary cycle context with one contribution mark per day. Past and current days open that date's History Day progress; future days remain unavailable.
 
 This model avoids falsely marking flexible weekly practices as overdue while keeping every configured practice visible.
 
 ## Logging flow
 
-The direct action is always **Log**, not a generic checkbox.
+The primary control is a circle beside the practice, not a labelled **Log** button and not a checkbox. VoiceOver still names it as logging.
 
-1. Tap **Log** beside a practice to save a session immediately with its expected duration (or no duration for a count-only practice).
-2. Tap **Details** instead to choose a quick duration before saving.
+1. Tap the circle to save a session immediately with the practice's expected duration (or no duration for a count-only practice). The circle shows a count while the weekly target is in progress and a checkmark once it is met; tapping it again still logs another session.
+2. Tap the ellipsis to open a sheet and choose a quick duration before saving.
 3. A live session records the actual current time at save.
 4. History Day can add an activity at an earlier date/time or edit/delete an existing activity. These operations append correction records; they never overwrite or physically remove the base log.
 5. Return to Home with weekly metrics, recent rhythm, calendar intensity, and streak refreshed from effective session state.
