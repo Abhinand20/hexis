@@ -1,3 +1,5 @@
+> **Document status:** never built as specified. Screens have VoiceOver labels and do not disable font scaling; this M16 device-evidence programme was not executed. Retained as historical context.
+
 # Branch handoff: M16 essential accessibility and usability
 
 **Branch:** `codex/m16-accessibility`  

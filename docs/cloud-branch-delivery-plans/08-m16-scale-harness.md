@@ -1,3 +1,5 @@
+> **Document status:** never built. There is no ten-year fixture or years-scale harness in the codebase. Retained as historical context.
+
 # Cloud handoff: M16 years-scale harness
 
 **Cloud branch:** `codex/cloud-m16-scale-harness`  

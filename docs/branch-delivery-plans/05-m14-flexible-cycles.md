@@ -1,3 +1,5 @@
+> **Document status:** never built as specified. Custom cycle lengths and explicit actual-closure were not implemented; dated add/stop membership had already shipped as M8. Retained as historical context.
+
 # Branch handoff: M14 flexible cycles with preserved plans
 
 **Branch:** `codex/m14-flexible-cycles`  

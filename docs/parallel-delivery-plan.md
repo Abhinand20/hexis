@@ -1,3 +1,5 @@
+> **Document status:** implemented and superseded. This was the M7–M10 branch plan. Retained as historical context, not as a current description of the app.
+
 # M7–M10 parallel delivery plan
 
 This plan turns Tasks 15–29 in `docs/implementation-plan.md` into short-lived,

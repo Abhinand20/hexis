@@ -1,3 +1,5 @@
+> **Document status:** partially implemented later, in different form. A personal-device install runbook exists; this M11 Release-proof branch was not executed as written. Retained as historical context.
+
 # Branch handoff: M11 early standalone Release proof
 
 **Branch:** `codex/m11-release-proof`  

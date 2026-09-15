@@ -1,3 +1,5 @@
+> **Document status:** never executed as written. A personal-device install runbook and an owner backup runbook exist; the M16 recovery-drill and Release-handoff programme was not closed from this plan. Retained as historical context.
+
 # Branch handoff: M16 Release, recovery drills, and maintenance handoff
 
 **Branch:** `codex/m16-device-handoff`  

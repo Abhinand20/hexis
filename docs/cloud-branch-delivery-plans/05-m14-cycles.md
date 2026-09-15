@@ -1,3 +1,5 @@
+> **Document status:** never built as specified. Cycle duration is still 30, 60, or 90 days. Retained as historical context.
+
 # Cloud handoff: M14 flexible cycles
 
 **Cloud branch:** `codex/cloud-m14-cycles`  

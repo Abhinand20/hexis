@@ -1,3 +1,5 @@
+> **Document status:** never executed as this cloud handoff (dispatch fields still placeholders). CSV export was never built; SQLite backup/restore later shipped under a different plan. Retained as historical context.
+
 # Cloud handoff: M12 recovery core
 
 **Cloud branch:** `codex/cloud-m12-recovery-core`  

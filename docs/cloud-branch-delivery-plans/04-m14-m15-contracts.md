@@ -1,3 +1,5 @@
+> **Document status:** never built. No shared M14/M15 persistence-contract commit exists as specified here. Retained as historical context.
+
 # Cloud handoff: shared M14/M15 persistence contracts
 
 **Cloud branch:** `codex/cloud-m14-m15-contracts`  

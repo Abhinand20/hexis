@@ -1,3 +1,5 @@
+> **Document status:** never executed as this M13 branch. Much of the history/correction behaviour it describes had already shipped in M7. Retained as historical context.
+
 # Branch handoff: M13 truthful history and reliable actions
 
 **Branch:** `codex/m13-correctness-reliability`  

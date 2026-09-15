@@ -1,3 +1,5 @@
+> **Document status:** never executed as written. The M11–M16 cloud dispatch was superseded; wrap-up, backup/restore, and weight later shipped on `main` through other plans. Retained as historical context.
+
 > MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
 
 # M11–M16 Codex cloud execution handoff plan

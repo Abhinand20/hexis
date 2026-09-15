@@ -1,3 +1,5 @@
+> **Document status:** implemented (M0–M10 core) and superseded. Retained as historical context, not as a current description of the app. Later wrap-up, backup/restore, and weight work are not specified here.
+
 > MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
 
 # Hexis Implementation Plan

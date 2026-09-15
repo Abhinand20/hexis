@@ -1,3 +1,5 @@
+> **Document status:** never executed as this cloud handoff (dispatch fields still placeholders). Retained as historical context.
+
 # Cloud handoff: M16 documentation and acceptance audit
 
 **Cloud branch:** `codex/cloud-m16-docs-audit`  

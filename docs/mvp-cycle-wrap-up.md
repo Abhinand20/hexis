@@ -1,6 +1,8 @@
+> **Document status:** implemented on `main`. Retained as historical context, not as a current description of the app. Device acceptance in this specification has not been claimed.
+
 # MVP feature: cycle wrap-up and comparison
 
-Authority: [final MVP plan](mvp-final-implementation-plan.md). Status: specification only.
+Authority: [final MVP plan](mvp-final-implementation-plan.md). Originally a specification.
 
 Decision taken on 2026-09-08 by the owner: build the **thin** wrap-up. History's Cycle tab already renders weekly rhythm and a per-practice breakdown; do not rebuild either inside the wrap-up. The wrap-up owns the completion moment and the cross-cycle comparison, and links into History for detail.
 

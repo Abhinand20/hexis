@@ -1,3 +1,5 @@
+> **Document status:** never executed as this cloud handoff (dispatch fields still placeholders). Retained as historical context.
+
 # Cloud handoff: M16 accessibility code
 
 **Cloud branch:** `codex/cloud-m16-accessibility-code`  

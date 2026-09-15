@@ -1,3 +1,5 @@
+> **Document status:** never built. There is no ten-year fixture or years-scale harness in the codebase. Retained as historical context.
+
 # Branch handoff: M16 years-scale verification
 
 **Branch:** `codex/m16-years-scale`  

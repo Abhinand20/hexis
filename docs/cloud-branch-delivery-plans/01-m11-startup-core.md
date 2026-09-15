@@ -1,3 +1,5 @@
+> **Document status:** never executed as this cloud handoff (dispatch fields still placeholders). Startup error handling later shipped with backup/restore. Retained as historical context.
+
 # Cloud handoff: M11 startup core
 
 **Cloud branch:** `codex/cloud-m11-startup-core`  

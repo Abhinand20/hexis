@@ -1,3 +1,5 @@
+> **Document status:** partially implemented later, in different form. Startup error, quarantine of an unreadable database, and a pre-migration snapshot exist as part of backup/restore, not as this M11 programme. Retained as historical context.
+
 # Branch handoff: M11 recoverable startup and upgrades
 
 **Branch:** `codex/m11-startup-recovery`  

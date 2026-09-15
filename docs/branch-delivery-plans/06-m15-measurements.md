@@ -1,3 +1,5 @@
+> **Document status:** partially implemented later, in different form. Daily weight shipped without calories and without append-only measurement corrections. Retained as historical context.
+
 # Branch handoff: M15 optional daily weight and calories
 
 **Branch:** `codex/m15-measurements`  

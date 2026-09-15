@@ -1,3 +1,5 @@
+> **Document status:** implemented on `main`. Retained as historical context, not as a current description of the app. The backup call-to-action this plan omitted was added later. Device acceptance has not been claimed.
+
 # Implementation plan: cycle wrap-up and comparison
 
 Specification: [wrap-up spec](mvp-cycle-wrap-up.md). Authority: [final MVP plan](mvp-final-implementation-plan.md).

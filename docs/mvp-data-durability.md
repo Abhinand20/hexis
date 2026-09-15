@@ -1,6 +1,8 @@
+> **Document status:** implemented on `main`. Retained as historical context, not as a current description of the app. The clean-install device drill in this specification has not been claimed.
+
 # MVP feature: durable backup and restore
 
-Authority: [final MVP plan](mvp-final-implementation-plan.md). Status: specification only.
+Authority: [final MVP plan](mvp-final-implementation-plan.md). Originally a specification.
 
 Decisions taken on 2026-09-08 by the owner: the backup artifact is a SQLite snapshot, not a JSON archive; backup status is a plain creation timestamp rather than a verified-state machine, with explicit instruction to save into iCloud Drive; failure handling covers the MVP subset below, not a generalized durable-marker protocol; the clean-install drill runs on a single iPhone by deleting and reinstalling the app.
 

@@ -1,3 +1,5 @@
+> **Document status:** never executed as written. The M11–M16 branch plan was superseded by the later MVP wrap-up and durability work. Retained as historical context, not as a current description of the app.
+
 > MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
 
 # M11–M16 parallel branch delivery plan

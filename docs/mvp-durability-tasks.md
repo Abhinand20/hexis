@@ -1,3 +1,5 @@
+> **Document status:** implemented on `main`. Retained as historical context, not as a current description of the app. Schema version and table lists in the body predate daily weight. Device drills have not been claimed.
+
 # Implementation plan: durable backup and restore
 
 Specification: [durability spec](mvp-data-durability.md). Authority: [final MVP plan](mvp-final-implementation-plan.md).

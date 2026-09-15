@@ -1,3 +1,5 @@
+> **Document status:** superseded as a current description of the app. M0–M10 statuses below are historical; wrap-up, backup/restore, and weight later shipped outside this table. Retained as historical context.
+
 > MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
 
 # Hexis Milestones

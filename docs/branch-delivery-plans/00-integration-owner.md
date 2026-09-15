@@ -1,3 +1,5 @@
+> **Document status:** never executed as written. The M11–M16 integration programme was superseded. Retained as historical context.
+
 # Branch handoff: completion integration owner
 
 **Branch:** `codex/completion-integration`  

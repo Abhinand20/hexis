@@ -1,8 +1,10 @@
+> **Document status:** partially implemented, then superseded. Cycle wrap-up, backup/restore, and daily weight later shipped in different form; custom cycle dates, calories, CSV export, and the ten-year scale programme were never built as specified here. Retained as historical context, not as a current description of the app.
+
 > MVP scope update (2026-09-08): [Final MVP implementation plan](mvp-final-implementation-plan.md) is authoritative for remaining work: cycle wrap-up and durable backup/restore. Broader M11–M16 requirements and old handoffs are deferred unless explicitly included there. Historical implementation evidence below remains valid.
 
 # Hexis completion objective and delivery plan
 
-**Status:** Approved direction; implementation and acceptance pending.  
+**Status:** Originally approved direction; this document no longer describes remaining work. See the document status line above.  
 **Plan date:** 2026-09-06.  
 **Scope:** M11–M16, following the existing M0–M10 implementation.  
 **Owner decision:** Use a free Apple ID. Renew the personal-device installation every seven days. A paid developer membership is not required or desired.

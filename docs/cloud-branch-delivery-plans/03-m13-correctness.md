@@ -1,3 +1,5 @@
+> **Document status:** never executed as this cloud handoff (dispatch fields still placeholders). Retained as historical context.
+
 # Cloud handoff: M13 correctness and reliability
 
 **Cloud branch:** `codex/cloud-m13-correctness`  

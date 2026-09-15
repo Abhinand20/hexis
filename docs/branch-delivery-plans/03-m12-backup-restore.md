@@ -1,3 +1,5 @@
+> **Document status:** never built as specified. CSV export and deleted-activity recovery were not built; SQLite backup/restore later shipped under a different plan. Retained as historical context.
+
 # Branch handoff: M12 backup, restore, and portability
 
 **Branch:** `codex/m12-backup-restore`  

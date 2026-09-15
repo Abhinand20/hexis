@@ -1,6 +1,8 @@
+> **Document status:** implemented in code for the two features this plan required (cycle wrap-up and backup/restore). Device drills here have not been claimed. Weight, deferred in this plan, later shipped. Retained as historical context, not as a current description of the app.
+
 # Hexis final MVP implementation plan
 
-Status: implementation specification; not implemented or accepted by this document.
+Status: originally an implementation specification. See the document status line above.
 Date: 2026-09-08. Product authority: the owner's request to finish with cycle wrap-up and durable data.
 
 ## 1. Finish line and authority

@@ -1,3 +1,5 @@
+> **Document status:** never executed as this cloud handoff. Daily weight later shipped without calories and without append-only measurement corrections. Retained as historical context.
+
 # Cloud handoff: M15 measurements
 
 **Cloud branch:** `codex/cloud-m15-measurements`  
