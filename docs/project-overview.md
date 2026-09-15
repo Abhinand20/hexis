@@ -19,10 +19,10 @@ People with several interests often lose momentum not because they lack goals, b
 
 1. **Finite commitments over endless lists.** Every active group of habits belongs to a 30-, 60-, or 90-day cycle.
 2. **Log effort, not intentions.** A log represents a session that occurred and records its actual duration when relevant.
-3. **One calm home, a few quiet peers.** Home (the active cycle landing page) is the default tab and primary destination; History, Weight, and Settings are lightweight peer tabs for everything else. Focused tasks — starting a cycle, editing a goal — present as full-screen modals rather than adding to the tab set, so the destination set stays small and flat.
+3. **One calm home, a few quiet peers.** Home (the active cycle landing page) is the default tab and primary destination; History, Weight, and Settings are lightweight peer tabs for everything else. Focused tasks present as full-screen modals rather than adding to the tab set, so the destination set stays small and flat: cycle setup, adding a practice, editing a practice, and logging an earlier weight day. Cycle wrap-up is a full-screen stack screen with its own header, not a modal and not a tab.
 4. **Quiet motivation.** Streaks, contribution-style calendar marks, and progress bars communicate momentum without scores, ranks, or guilt.
-5. **Local by default.** Version one works fully offline and does not require an account.
-6. **Minimal visual language.** Porcelain & Ink uses open warm-neutral surfaces, ink-like typography, and a single muted verdigris progress signal. Glass is reserved for elevated controls and confirmation surfaces.
+5. **Local by default.** Version one works fully offline and does not require an account. A backup is a SQLite snapshot the person saves themselves (typically to iCloud Drive through the system share sheet). That is not account-backed cloud sync, and Hexis cannot see whether iCloud actually has the file.
+6. **Minimal visual language.** Porcelain & Ink uses open warm-neutral surfaces, ink-like typography, and a single muted verdigris progress signal. Glass is reserved for elevated controls and confirmation surfaces. The interface is light-only.
 
 ## Primary audience
 
@@ -59,7 +59,8 @@ flowchart LR
   Home --> Review[Review week or cycle]
   Review --> Home
   Home --> Complete[Finish or end cycle]
-  Complete --> Setup
+  Complete --> WrapUp[Cycle wrap-up]
+  WrapUp --> Setup
 ```
 
 1. Create a 30-, 60-, or 90-day cycle.
@@ -68,30 +69,34 @@ flowchart LR
 4. Open the landing page to see `Day X / duration`, the contribution calendar, and every configured practice.
 5. Tap **Log** for the practice that was completed, choose a quick duration when relevant, and save.
 6. Use Home to see what remains this week and the recent seven-day rhythm.
-7. Review any cycle by day, week, or cycle, and optionally use a finished cycle to prefill the next setup flow.
+7. Review any cycle by day, week, or cycle. When a cycle finishes or is ended early, the wrap-up page offers a backup call to action and a way to prefill the next setup flow from that cycle's final active practices.
 
 ## First-time onboarding
 
-The first-run flow should stay short and deliberately progressive:
+The first-run flow stays short. There is no separate welcome screen: cycle setup is three routed steps, starting with a short explanation of a finite focus cycle on the length screen.
 
-1. **Welcome:** explain the idea of a finite focus cycle.
-2. **Cycle length:** choose 30 days by default, or 60/90 days.
-3. **Practice selection:** start with editable templates or add a custom practice.
-4. **Practice configuration:** set a weekly/daily frequency and expected duration.
-5. **Review and start:** show the entire group and duration together before creating the cycle.
+1. **Cycle length:** choose 30 days by default, or 60/90 days.
+2. **Practice selection:** start with editable templates or add a custom practice, and set weekly/daily frequency and expected duration.
+3. **Review and start:** show the entire group and duration together before creating the cycle.
 
-The UI should not ask for notification permission during onboarding. Request it only when the person actively enables the single app-level daily reminder.
+The UI does not ask for notification permission during onboarding. Request it only when the person actively enables the single app-level daily reminder.
 
 ## Navigation model
 
 Hexis uses a persistent bottom tab bar with four tabs: **Home**, **History**, **Weight**, and **Settings**. Tabs are always visible, whether or not a cycle is active.
 
-- **Home** shows the active-cycle landing page; once the active cycle completes (naturally, or ended early) and no new cycle has replaced it, Home instead shows an achievement summary with a **Start a new cycle** action; a person who has never started a cycle sees a plain empty state with a **Start a cycle** action.
-- **History** reviews progress through a Day / Week / Cycle filter (see "Progress and insights" below). Its cycle selector can browse the active cycle and every completed or early-ended cycle without changing which cycle is active.
-- **Weight** records one body-weight entry per local date and shows weekly and monthly averages over calendar time. Weight is not keyed to a cycle: it continues between cycles and is never treated as a record of effort.
-- **Settings** consolidates adding, editing, or stopping active practices; the daily reminder (a toggle plus a time picker once enabled); and ending the current cycle early.
+- **Home** shows the active-cycle landing page. Once the active cycle completes (naturally, or ended early) and no new cycle has replaced it, Home instead shows an achievement summary with **View wrap-up** and **Start a new cycle**. A person who has never started a cycle sees a plain empty state with a **Start a cycle** action.
+- **History** reviews progress through a Day / Week / Cycle filter (see "Progress and insights" below). Its cycle selector can browse the active cycle and every completed or early-ended cycle without changing which cycle is active. A finished cycle also offers **View wrap-up** and **Repeat cycle** from this tab.
+- **Weight** records one body-weight entry per local date and shows weekly and monthly averages over calendar time. The kilogram/pound control lives on this tab, not in Settings. Logging an earlier day is a focused modal, not an extra tab. The recent list shows at most 30 entries. Weight is not keyed to a cycle: it continues between cycles and is never treated as a record of effort.
+- **Settings** consolidates adding, editing, or stopping active practices; the daily reminder (a toggle plus a time picker once enabled); ending the current cycle early; and **Data & backup** (create, check, and restore a SQLite snapshot). Backup remains available with or without an active cycle. Ending a cycle early opens that cycle's wrap-up.
 
-Two flows are focused tasks rather than destinations, so they do not get their own tab: **cycle setup** (duration → practices → review) and **editing a goal**. Both present as a full-screen modal on top of the tab bar, with the tab bar hidden until the flow is dismissed. Within a modal, each step is a real navigation entry with a native header back button and the standard iOS edge-swipe-back gesture — a person can always retreat to the previous step or screen without losing entered data.
+These focused tasks present as full-screen modals on top of the tab bar, with the tab bar hidden until the flow is dismissed:
+
+- **Cycle setup** (`/setup`): a nested stack of duration → practices → review, each a real navigation entry with a native header back button and the standard iOS edge-swipe-back gesture
+- **Add practice** and **Edit practice**: single-screen modals with native headers (edit also hosts stop-tracking)
+- **Log an earlier weight day** (`/log-weight`): a single-screen modal titled "Add an earlier day"
+
+**Cycle wrap-up** (`/cycles/[cycleId]/summary`) is registered as an ordinary stack screen with a native header titled "Cycle wrap-up", not as a modal. It is reached from Home's completion state, from History on a finished cycle, and immediately after ending a cycle early in Settings.
 
 ## Active cycle landing page
 
@@ -131,7 +136,7 @@ For a selected local date, shows total sessions and minutes, a chronological act
 
 ### History: Week filter
 
-Weeks are calendar weeks (Monday–Sunday) — the same definition already used for per-practice weekly targets and streaks above, so a week means the same thing everywhere in the app. Defaults to the current week; a person can navigate to any earlier week within the active cycle. Each week stays compact and visual:
+Weeks are calendar weeks (Monday–Sunday) — the same definition already used for per-practice weekly targets and streaks above, so a week means the same thing everywhere in the app. Defaults to the latest week in the selected cycle; a person can navigate to any earlier week within that cycle. Each week stays compact and visual:
 
 - Sessions completed, time logged, and practices that reached their target
 - A seven-day activity rhythm chart
@@ -152,23 +157,50 @@ Shows the full-cycle contribution grid alongside:
 
 The metrics remain descriptive rather than evaluative: target progress is capped at 100%, over-target sessions still remain in the raw totals, and the interface does not assign a score or recommendation. History refreshes from SQLite whenever the tab regains focus so a newly logged session appears immediately.
 
+### Cycle wrap-up
+
+The wrap-up page is the completion moment for a cycle that has completed or ended early. It remains available after another cycle starts. An active-cycle or unknown id shows an error state with a way back, not a fabricated result.
+
+It shows, in order: cycle name, actual date range, duration, and **Completed** or **Ended early**; totals for sessions, recorded minutes, active days, and activity-day percentage; a comparison with an earlier finished cycle when one exists; descriptive highlights (longest active-day run, busiest week, most-logged practice); then **Back up data**, **Repeat cycle**, and **See full activity**. The backup control here can only create a snapshot — checking and restoring stay in Settings. Weekly rhythm charts and per-practice rows stay in History.
+
 ## Data model
+
+The live schema is version 7.
 
 | Entity | Purpose | Key fields |
 | --- | --- | --- |
-| `Cycle` | A bounded focus period | id, name, startDate, durationDays, endDate, status |
-| `CycleGoal` | A dated practice membership captured in a cycle | id, cycleId, name, cadence, weeklyTargetCount, expectedDurationMinutes, activeFromDate, inactiveFromDate |
+| `Cycle` | A bounded focus period | id, name, startDate, durationDays, endDate, status, createdAt |
+| `CycleGoal` | A dated practice membership captured in a cycle | id, cycleId, name, cadence, weeklyTargetCount, expectedDurationMinutes, activeFromDate, inactiveFromDate, createdAt |
 | `GoalRevision` | A forward-only update to a cycle goal | id, cycleGoalId, effectiveDate, changed target/configuration fields |
 | `SessionLog` | An immutable base completed session | id, cycleGoalId, localDate, startedAt, durationMinutes, createdAt |
-| `SessionCorrection` | An append-only replacement or tombstone for a base session | id, sessionLogId, replacement fields or deleted marker, createdAt |
-| `ReminderSettings` | Optional app-level local reminder | enabled, localTime, notificationIdentifier |
+| `SessionLogRevision` | An append-only replacement or tombstone for a base session | sequence, sourceSessionId, cycleGoalId, localDate, startedAt, durationMinutes, tombstone, createdAt |
+| `ReminderSettings` | Optional app-level local reminder | enabled, hour, minute, notificationIdentifier |
 | `DailyWeight` | One recorded body weight for a local date | id, localDate, weightGrams, createdAt, updatedAt |
+| `WeightPreference` | Single-row display unit for weight | id (pinned to 1), unit (`kg` or `lb`) |
 
 Progress is derived from effective sessions, dated membership, and effective goal configuration. It is not stored as a duplicate aggregate.
 
-`DailyWeight` is calendar-scoped rather than cycle-scoped: it has no foreign key to `Cycle`, so weight history remains when a person is between cycles.
+`DailyWeight` is calendar-scoped rather than cycle-scoped: it has no foreign key to `Cycle`, so weight history remains when a person is between cycles. Canonical storage is integer grams. There is one display-unit row; if it is absent, the Weight tab treats the unit as kilograms. Saving the same local date again replaces that row in place. Deleting a weight is a hard delete: there is no tombstone.
 
 A cycle's `status` moves from `active` to `completed` automatically the next time the app reads cycle state after its `endDate` has passed — there is no background job, since Hexis is local-only and only needs to notice on next open.
+
+## Backup and restore
+
+Hexis stores every table above in one local SQLite file. That file does not survive deleting the app, resetting the phone, or losing the device. A backup is one `.db` snapshot (`hexis-backup-YYYY-MM-DD.db`) created with `VACUUM INTO`, then handed to the system share sheet (`expo-sharing`). Restore validates a picked snapshot, migrates an older copy forward on a staging connection, and replaces live rows transactionally through `ATTACH`. It replaces; it does not merge. Reminder settings, weight history, and the display-unit preference are included.
+
+The file is unencrypted personal data. Hexis cannot see iCloud. Completing the share sheet is not proof that the file arrived or that iCloud finished uploading it. A last-backup timestamp is written to a JSON file outside the database only after the share sheet returns without being treated as cancelled — so a restored snapshot cannot carry another phone's freshness claim, and a clean install starts with no claim. There is no verified/unverified state. Checking a file reports what it contains and does not mark it verified.
+
+Settings shows "You have changes since then" when a later timestamp exists on cycles, practices, revisions, sessions, corrections, or weight rows (`MAX(created_at, updated_at)` for weights). That check cannot see:
+
+- ending a cycle early (status / end date change without a new `created_at`)
+- stopping a practice (membership boundary update without a new `created_at`)
+- a deleted weight entry (hard delete leaves no timestamp)
+- changing only the kilogram/pound preference (`weight_preferences` has no timestamp)
+- changing only the daily reminder (`reminder_settings` has no timestamp and is not in the query)
+
+When in doubt, take another backup. A quiet prompt appears when the last backup is missing or at least seven days old. Local copies in the app sandbox keep the two newest regular snapshots; they are not phone-loss protection. A damaged `hexis.db` is renamed aside (`hexis-unreadable-…`) rather than erased; the startup screen offers **Retry** and **Restore from backup**.
+
+The owner-facing procedure is in [owner-backup-runbook.md](owner-backup-runbook.md). Automated coverage lives under Jest; a successful test run is not a device restore drill.
 
 ## Technical direction
 
@@ -176,9 +208,11 @@ A cycle's `status` moves from `active` to `completed` automatically the next tim
 | --- | --- |
 | Platform | iPhone-first, iOS 26+ visual target |
 | Framework | Expo with React Native and TypeScript |
-| Navigation | Expo Router: a persistent bottom tab group (Home, History, Weight, Settings) plus modal-presented focused flows (cycle setup, goal editing) with native header back and swipe-back |
+| Navigation | Expo Router: a persistent bottom tab group (Home, History, Weight, Settings); modal-presented focused flows (cycle setup, add practice, edit practice, log-weight) with native header back and swipe-back; cycle wrap-up as a non-modal stack screen |
 | Persistence | `expo-sqlite`, versioned migrations, offline-first |
+| Backup | SQLite snapshot via `VACUUM INTO` and `expo-sharing`; restore via `ATTACH` replacement; freshness timestamp stored outside the database |
 | Notifications | `expo-notifications`, one optional app-level local reminder |
+| Appearance | `userInterfaceStyle` is `"light"`. The token palette is light-only and every screen hardcodes it; dark mode is unsupported |
 | Native glass | `expo-glass-effect` for selective native Liquid Glass surfaces |
 | State | Feature-local hooks and repositories; SQLite remains the source of truth |
 | Styling | React Native `StyleSheet` plus a small token system; no utility-class dependency |
@@ -188,21 +222,24 @@ A cycle's `status` moves from `active` to `completed` automatically the next tim
 
 ## Visual direction: Porcelain & Ink
 
+The app is light-only. `app.json` sets `"userInterfaceStyle": "light"` because the token file defines one light palette and every screen hardcodes it. Under the previous `"automatic"` setting, a phone in dark mode rendered dark native chrome (tab bar, modal headers, alerts, date picker) and dark `expo-glass-effect` surfaces underneath near-black text. Dark mode would require a second palette; it is not a config flip. This pin is covered by a Jest test, not by a device check.
+
 - **Surface:** warm porcelain-like open space, with no decorative gradients.
 - **Typography:** high-contrast, ink-like hierarchy using native typography.
 - **Accent:** muted verdigris for completion, progress, and calendar intensity.
 - **Glass:** tab/navigation surfaces, logging sheet, and elevated confirmation controls only.
-- **Motion:** subtle completion feedback; respect reduced-motion settings.
-- **Accessibility:** Dynamic Type, VoiceOver labels for all progress and controls, non-color progress labels, and sufficient text contrast over translucent surfaces.
+- **Motion:** subtle completion feedback (a light haptic on quick-log).
+- **Accessibility:** VoiceOver labels for progress and controls, non-color progress labels, and sufficient text contrast over translucent surfaces. Screens do not disable font scaling.
 
 ## Version-one scope
 
 Included:
 
 - 30/60/90-day cycles
-- Persistent bottom tab navigation (Home, History, Weight, Settings) with modal-presented setup and goal-editing flows, native back, and swipe-back
-- Daily weight logging with weekly and monthly averages over calendar time, independent of cycle membership
-- Automatic active-to-completed cycle transition once the end date passes, with a Home completion summary and a **Start a new cycle** action
+- Persistent bottom tab navigation (Home, History, Weight, Settings) with modal-presented setup, add-practice, goal-editing, and earlier-day weight flows, native back, and swipe-back
+- Cycle wrap-up for completed and early-ended cycles, with comparison, a backup call to action, and repeat-cycle setup
+- Daily weight logging with weekly and monthly averages over calendar time, independent of cycle membership, stored as integer grams with a kg/lb display preference
+- Automatic active-to-completed cycle transition once the end date passes, with a Home completion summary, **View wrap-up**, and a **Start a new cycle** action
 - Editable templates and custom practices before cycle start
 - Forward-only add/stop practice membership during an active cycle
 - Daily and weekly count/duration targets
@@ -213,17 +250,21 @@ Included:
 - Repeat-cycle setup prefilled from the final active configuration of a completed or early-ended cycle
 - Returning-user forward-only goal edits
 - One optional app-level daily reminder with a time picker
-- Local SQLite persistence
+- Local SQLite persistence, currently schema version 7
+- Portable SQLite backup and replace-only restore through Settings, plus a wrap-up backup prompt, with the honesty limits above
+- Light-only appearance
 
 Explicitly excluded:
 
-- Accounts, sign-in, and cloud sync
+- Accounts, sign-in, and account-backed cloud sync (a person may save a snapshot to iCloud Drive themselves; Hexis does not sync)
 - Widgets, Apple Watch, Apple Health, or HealthKit
 - Per-practice reminders
 - In-app timers
 - Social sharing, leaderboards, and challenges
 - AI coaching or adaptive recommendations
 - Payments, subscriptions, and web/Android versions
+- Dark mode
+- Weight charts, goal weights, calorie tracking, or weight figures inside wrap-up or History
 
 ## Success criteria
 
@@ -236,3 +277,4 @@ Hexis succeeds when a person can:
 5. Add or stop a practice without changing prior-day targets or history.
 6. Browse and repeat earlier cycles without copying their logs or identifiers.
 7. Use the entire app offline, without creating an account.
+8. Create a backup, understand that finishing the share sheet does not prove iCloud has the file, and restore a snapshot they actually saved — knowing recovery only reaches as far as that snapshot.
