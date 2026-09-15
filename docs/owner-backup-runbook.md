@@ -1,6 +1,6 @@
 # Owner runbook: Hexis backup and restore
 
-Hexis stores practice history, daily weight entries, and the kilogram/pound display preference in a local SQLite file on this iPhone. That file does not survive deleting the app, resetting the phone, or losing the device. A backup is one `.db` snapshot that **you** save to iCloud Drive. Restoring replaces all of that data, including weight history and the display-unit preference; it does not merge.
+Hexis stores practice history, the daily reminder preference, daily weight entries, and the kilogram/pound display preference in a local SQLite file on this iPhone. That file does not survive deleting the app, resetting the phone, or losing the device. A backup is one `.db` snapshot that **you** save to iCloud Drive. Restoring replaces all of that data, including reminder settings, weight history, and the display-unit preference; it does not merge.
 
 Hexis cannot see iCloud. Completing the share sheet is not proof that the file arrived or finished uploading. Status is only “last backup created” plus whether there are newer rows since then. There is no verified/unverified state.
 
@@ -27,7 +27,7 @@ Recovery only reaches as far as the last snapshot you actually saved. Anything l
 
 1. Install Hexis. A clean install has no history and no backup timestamp.
 2. Open Settings → **Restore backup** (or **Restore from backup** if Hexis cannot open its database).
-3. Pick the iCloud Drive copy. Read the preview. Restore **replaces** everything on this phone — practice history, weight history, and the display-unit preference — and does not merge.
+3. Pick the iCloud Drive copy. Read the preview. Restore **replaces** everything on this phone — practice history, reminder settings, weight history, and the display-unit preference — and does not merge.
 4. Confirm. If reminder scheduling fails, the history is still restored; turn the reminder off and on under Settings if you want notifications.
 5. Log one correction. If that succeeds, sequence continuity is intact.
 
@@ -49,4 +49,4 @@ A local pre-restore snapshot is insurance against a restore bug on a still-worki
 
 ## Freshness limits
 
-“You have changes since then” looks at row creation times, and for weight entries at the later of `created_at` and `updated_at` so an in-place edit is visible. Ending a cycle early updates status without changing `created_at`, so that lifecycle-only edit may not appear as a change. A deleted weight entry leaves no timestamp, and changing only the kilogram/pound preference writes none, so those two changes are also invisible. When in doubt, take another backup.
+“You have changes since then” looks at row creation times, and for weight entries at the later of `created_at` and `updated_at` so an in-place edit is visible. It does not look at reminder settings. Ending a cycle early updates status without changing `created_at`, and stopping a practice updates its membership boundary the same way, so those edits may not appear as a change. A deleted weight entry leaves no timestamp, and changing only the kilogram/pound preference writes none, so those two changes are also invisible. When in doubt, take another backup.

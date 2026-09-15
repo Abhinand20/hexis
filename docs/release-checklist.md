@@ -26,13 +26,17 @@ repeatable procedure for doing that, not a one-time checklist.
 
 ```bash
 npx jest --runInBand
-npx tsc --noEmit
+npm run typecheck
 npx expo-doctor
 ```
 
-All three must exit `0` before proceeding. These are fast, non-destructive,
-and don't require the device — run them first so a build attempt never wastes
-time on a codebase that wouldn't have passed CI anyway.
+`npm test` is the same Jest command (`jest --runInBand`). `npm run typecheck`
+is `tsc --noEmit`. There is no `lint` script. All three commands above must
+exit `0` before proceeding. These are fast, non-destructive, and don't
+require the device — run them first so a build attempt never wastes time on a
+codebase that wouldn't have passed CI anyway. Automated tests are not a
+substitute for the device pass below, and they are not proof that a backup
+reached iCloud or that restore was exercised on a phone.
 
 ## Feature regression pass on the iPhone
 
@@ -77,6 +81,42 @@ to do so; never change the phone's timezone while the app is open.
   reminder settings.
 - With an active cycle present, open Repeat cycle and confirm setup can be
   reviewed but Start explains the active-cycle conflict without writing.
+
+### Cycle wrap-up
+
+- End a cycle early from Settings and confirm the wrap-up screen opens.
+- From Home's completed state, open **View wrap-up**. From History on a
+  finished cycle, open **View wrap-up** again after another cycle is active.
+- Confirm **Back up data** on wrap-up can create a snapshot but does not
+  offer check or restore. **Repeat cycle** prefills setup; **See full
+  activity** opens History for that cycle.
+
+### Backup and restore
+
+Follow [owner-backup-runbook.md](owner-backup-runbook.md) rather than
+inventing a shorter path. On this phone:
+
+- Create a backup from Settings, save it to iCloud Drive (not On My iPhone),
+  and confirm Settings records a last-backup time while still saying that
+  completing the share sheet is not proof iCloud has the file.
+- Use **Check a backup file** on that copy. Confirm Hexis does not mark it
+  verified.
+- A clean-install restore is a destructive drill. Only run it against
+  disposable data, and only after the Files app shows the iCloud copy. Jest
+  backup suites passing is not this drill.
+
+### Weight
+
+- Log today's weight, update it, add an earlier day from the modal, and
+  delete an entry. Weekly and monthly averages must follow recorded days only.
+- Toggle kg/lb and confirm the input and displayed values agree. The unit
+  control is on the Weight tab, not in Settings.
+
+### Appearance
+
+- Put the phone in dark mode and confirm Hexis stays light: tab bar, modal
+  headers, alerts, and the date picker. Dark mode is unsupported; a dark
+  system appearance must not produce dark chrome under near-black text.
 
 ## Generate (or refresh) the native iOS project
 
